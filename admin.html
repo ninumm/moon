@@ -50,12 +50,17 @@
 <script src="config.js"></script>
 <script src="shared.js"></script>
 <script>
+let status = loadCachedBookings() ? 'cached' : 'loading';   // 'loading' | 'cached' | 'fresh'
+
 function render() {
   renderStats();
   renderOrderStats();
   renderPool();
   renderSummary();
-  $('#updatedAt').textContent = `（更新於 ${new Date().toLocaleTimeString('zh-TW', { hour12: false })}）`;
+  $('#updatedAt').textContent =
+    status === 'loading' ? '（讀取中…）'
+    : status === 'cached' ? '（顯示上次的資料，更新中…）'
+    : `（更新於 ${new Date(lastSyncAt).toLocaleTimeString('zh-TW', { hour12: false })}）`;
 }
 
 function renderStats() {
@@ -151,13 +156,18 @@ $('#btnExport').onclick = () => {
 };
 
 async function refresh() {
-  await syncBookings();
+  $('#btnRefresh').disabled = true;
+  $('#btnRefresh').textContent = '↻ 更新中…';
+  if (await syncBookings()) status = 'fresh';
+  $('#btnRefresh').disabled = false;
+  $('#btnRefresh').textContent = '↻ 重新整理';
   render();
 }
 
 $('#btnRefresh').onclick = () => refresh();
+render();    // 先用快取畫出來
 refresh();
-setInterval(refresh, 20000);
+autoRefresh(refresh, 30000);
 </script>
 </body>
 </html>

@@ -108,12 +108,53 @@ function newCode(existing) {
   return code;
 }
 
-// 取得最新登記資料，並把連線狀態顯示在 #netBanner
-async function syncBookings() {
+/* ---------------- 讀取加速 ----------------
+   Apps Script 每次讀取約 1.5～2 秒，閒置後第一次更久。
+   做法：先顯示上次讀到的資料（快取），背景再抓最新的。
+   送出登記時後端一定會重新檢查座位，所以快取稍舊也不會超賣。 */
+
+const CACHE_KEY = 'moon-state-cache-v1';
+let lastSyncAt = 0;
+let syncing = null;
+
+function setBookings(list) {
+  bookings = list || [];
+  if (!API_URL) return;   // 單機模式本來就是即時的，不用快取
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(bookings)); } catch (e) {}
+}
+
+// 有快取就先載入，回傳是否成功
+function loadCachedBookings() {
+  if (!API_URL) return false;
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (Array.isArray(cached)) { bookings = cached; return true; }
+  } catch (e) {}
+  return false;
+}
+
+// 定時更新：只在頁面正在被看的時候才打後端，減輕 Apps Script 同時執行的負擔
+function autoRefresh(fn, intervalMs, canRun) {
+  const ok = () => document.visibilityState === 'visible' && (!canRun || canRun());
+  setInterval(() => { if (ok()) fn(); }, intervalMs);
+  document.addEventListener('visibilitychange', () => {
+    if (ok() && Date.now() - lastSyncAt > 15000) fn();
+  });
+}
+
+// 取得最新登記資料，並把連線狀態顯示在 #netBanner。
+// 同時間只會有一個請求在跑，重複呼叫會共用同一個結果。
+function syncBookings() {
+  if (!syncing) syncing = doSync().finally(() => { syncing = null; });
+  return syncing;
+}
+
+async function doSync() {
   const banner = document.querySelector('#netBanner');
   try {
     const r = await api('state', {});
-    bookings = r.bookings || [];
+    setBookings(r.bookings);
+    lastSyncAt = Date.now();
     if (banner) {
       banner.className = API_URL ? 'banner' : 'banner info';
       banner.innerHTML = API_URL ? '' :

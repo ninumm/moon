@@ -110,12 +110,29 @@
 let filter = 'all';
 let busy = false;
 let formMode = 'pair';   // 'pair' | 'solo'
+let ready = loadCachedBookings();   // 有上次的資料就先顯示，不用等後端
+let updating = false;
 
 /* ---------------- 桌次 ---------------- */
 
 function render() {
   const left = TOTAL_SEATS - bookings.filter(b => b.tableId).length;
-  $('#seatsLeft').textContent = `全場剩 ${left} 席`;
+  $('#seatsLeft').textContent = !ready ? '讀取中…'
+    : `全場剩 ${left} 席${updating ? '・更新中…' : ''}`;
+
+  if (!ready) {
+    // 第一次開啟、還沒有任何資料：先把桌子畫出來，按鈕暫時不能按
+    $('#grid').innerHTML = TABLES.map(t => `<div class="table-card">
+      <div class="tc-head">
+        <div><div class="tc-name">${t.id} 桌</div><div class="tc-size">${t.size} 人桌・${t.size / 2} 組</div></div>
+        <span class="pill no">讀取中…</span>
+      </div>
+      <div class="seats">${'<span class="seat"></span>'.repeat(t.size)}</div>
+      <div class="occupants"><i class="muted">讀取中…</i></div>
+      <div class="tc-actions"><button class="primary" disabled>讀取中…</button></div>
+    </div>`).join('');
+    return;
+  }
 
   const list = TABLES.filter(t => {
     if (filter === 'all') return true;
@@ -151,7 +168,11 @@ function render() {
 }
 
 async function refresh() {
-  await syncBookings();
+  updating = true;
+  render();
+  const ok = await syncBookings();
+  ready = ready || ok;
+  updating = false;
   render();
 }
 
@@ -299,6 +320,11 @@ function openPair(tableId) {
   addGroup(false);
   setMsg('');
   dlg.showModal();
+
+  // 背景抓最新座位，回來後更新桌次選單（保留使用者目前的選擇）
+  refresh().then(() => {
+    if (dlg.open && formMode === 'pair') { fillTableSelect($('#tableSel').value); syncGroups(); }
+  });
 }
 
 function openSolo() {
@@ -395,7 +421,7 @@ $('#btnSubmit').onclick = async () => {
   setMsg('送出中…');
   try {
     const r = await api('book', payload);
-    bookings = r.bookings;
+    setBookings(r.bookings);
     render();
     dlg.close();
     showDone(r.code, payload);
@@ -464,7 +490,7 @@ $('#btnDoCancel').onclick = async () => {
   if (!code) { m.textContent = '⚠️ 請輸入預約碼'; m.className = 'msg err'; return; }
   try {
     const r = await api('cancel', { code });
-    bookings = r.bookings;
+    setBookings(r.bookings);
     render();
     m.textContent = `✅ 已取消 ${r.removed} 位的登記`;
     m.className = 'msg ok';
@@ -498,8 +524,8 @@ document.querySelectorAll('[data-close]').forEach(b => {
 });
 
 refresh();
-// 每 20 秒同步一次，避免兩組人同時搶同一桌時畫面不同步
-setInterval(() => { if (!dlg.open && !busy) refresh(); }, 20000);
+// 每 60 秒同步一次（頁面沒在看時暫停）；切回頁面時會立刻更新
+autoRefresh(refresh, 60000, () => !dlg.open && !busy);
 </script>
 </body>
 </html>
