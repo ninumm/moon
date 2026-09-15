@@ -11,13 +11,17 @@
 
 <header>
   <h1>🌕 中秋餐會 座位與餐點登記</h1>
-  <p>兩人一組選桌、選套餐；找不到搭檔的同仁可以交由福委會安排。</p>
+  <p>請依自己的狀況選擇下方按鈕；兩人一組也可以直接在桌卡上按「登記這桌」。</p>
 </header>
 
 <div class="entry">
   <button class="entry-card main" id="btnPair">
     <span class="ec-icon">👫</span>
     <span><b>兩人一組登記</b><small>已經找好搭檔，一起選桌與套餐</small></span>
+  </button>
+  <button class="entry-card veg" id="btnVeg">
+    <span class="ec-icon">🌱</span>
+    <span><b>素食桌登記</b><small id="vegEntryNote">一人一位，只要選飲品和甜點</small></span>
   </button>
   <button class="entry-card" id="btnSolo">
     <span class="ec-icon">🙋</span>
@@ -33,9 +37,8 @@
   <button class="chipbtn" data-filter="4">4 人桌</button>
   <button class="chipbtn" data-filter="6">6 人桌</button>
   <button class="chipbtn" data-filter="8">8 人桌</button>
+  <button class="chipbtn chip-veg" data-filter="veg">🌱 素桌</button>
   <button class="chipbtn" data-filter="free">尚有空位</button>
-  <span class="spacer"></span>
-  <button class="ghost" id="btnCancel">取消我的登記</button>
 </div>
 <div class="grid" id="grid"><div class="loading">載入中…</div></div>
 
@@ -73,33 +76,11 @@
   <div class="done-top">
     <div class="done-icon">✅</div>
     <h3 style="margin:4px 0 0">登記完成</h3>
+    <p class="dlg-sub" style="margin:4px 0 0">以下是你的登記內容，如需修改請洽福委會。</p>
   </div>
-  <div class="codebox">
-    <div class="code-label">你的預約碼</div>
-    <div class="bigcode" id="doneCode"></div>
-    <button type="button" class="ghost" id="btnCopy">複製預約碼</button>
-  </div>
-  <p class="dlg-sub" style="text-align:center;margin:0">請截圖或記下預約碼，之後要取消登記時會用到。</p>
   <div class="done-detail" id="doneDetail"></div>
   <div class="dlg-foot">
     <button type="button" class="primary wide" id="btnDoneOk">確認</button>
-  </div>
- </div>
-</dialog>
-
-<!-- ============ 取消對話框 ============ -->
-<dialog id="dlgCancel">
- <div class="dlg-body">
-  <div class="dlg-head">
-    <h3>取消登記</h3>
-    <button type="button" class="x" data-close>&times;</button>
-  </div>
-  <p class="dlg-sub">輸入登記完成時拿到的<b>預約碼</b>，會一併取消該筆登記的所有人。</p>
-  <input type="text" id="cancelCode" placeholder="例如 K7F2QX" style="text-transform:uppercase">
-  <p class="msg" id="cancelMsg"></p>
-  <div class="dlg-foot">
-    <button type="button" class="ghost" data-close>關閉</button>
-    <button type="button" class="primary" id="btnDoCancel">確認取消</button>
   </div>
  </div>
 </dialog>
@@ -109,22 +90,39 @@
 <script>
 let filter = 'all';
 let busy = false;
-let formMode = 'pair';   // 'pair' | 'solo'
+let formMode = 'pair';   // 'pair' 兩人一組 | 'veg' 素桌 | 'solo' 找不到搭檔
 let ready = loadCachedBookings();   // 有上次的資料就先顯示，不用等後端
 let updating = false;
+let requestId = null;               // 同一次填寫共用：逾時重送時後端會認得，不會重複登記
+
+const seatsLeftAt = id => tableById(id).size - seatsUsed(id);
+const vegSeatsLeft = () => VEG_TABLES.reduce((s, t) => s + seatsLeftAt(t.id), 0);
+// 這張桌子還能登記幾個「單位」：一般桌算組、素桌算人
+const unitsLeft = t => t.veg ? seatsLeftAt(t.id) : Math.floor(seatsLeftAt(t.id) / 2);
 
 /* ---------------- 桌次 ---------------- */
 
+function tableSizeText(t) {
+  return t.veg ? `素桌・${t.size} 人・一人一位` : `${t.size} 人桌・${t.size / 2} 組`;
+}
+
 function render() {
-  const left = TOTAL_SEATS - bookings.filter(b => b.tableId).length;
+  const left = TOTAL_SEATS - bookings.filter(b => tableById(b.tableId)).length;
   $('#seatsLeft').textContent = !ready ? '讀取中…'
     : `全場剩 ${left} 席${updating ? '・更新中…' : ''}`;
 
+  // 素桌入口按鈕
+  const vegLeft = vegSeatsLeft();
+  $('#btnVeg').disabled = ready && vegLeft === 0;
+  $('#vegEntryNote').textContent = !ready ? '一人一位，只要選飲品和甜點'
+    : vegLeft > 0 ? `還剩 ${vegLeft} 位・一人一位，只要選飲品和甜點`
+    : '素桌已額滿，請改選一般桌或「找不到搭檔」';
+
   if (!ready) {
     // 第一次開啟、還沒有任何資料：先把桌子畫出來，按鈕暫時不能按
-    $('#grid').innerHTML = TABLES.map(t => `<div class="table-card">
+    $('#grid').innerHTML = TABLES.map(t => `<div class="table-card ${t.veg ? 'veg' : ''}">
       <div class="tc-head">
-        <div><div class="tc-name">${t.id} 桌</div><div class="tc-size">${t.size} 人桌・${t.size / 2} 組</div></div>
+        <div><div class="tc-name">${t.veg ? '🌱 ' : ''}${t.id} 桌</div><div class="tc-size">${tableSizeText(t)}</div></div>
         <span class="pill no">讀取中…</span>
       </div>
       <div class="seats">${'<span class="seat"></span>'.repeat(t.size)}</div>
@@ -136,20 +134,24 @@ function render() {
 
   const list = TABLES.filter(t => {
     if (filter === 'all') return true;
-    if (filter === 'free') return pairSlots(t.id) > 0;
-    return String(t.size) === filter;
+    if (filter === 'veg') return t.veg;
+    if (filter === 'free') return unitsLeft(t) > 0;
+    return !t.veg && String(t.size) === filter;
   });
 
   $('#grid').innerHTML = list.map(t => {
     const used = seatsUsed(t.id);
     const left = t.size - used;
-    const slots = Math.floor(left / 2);
-    const pillCls = slots === 0 ? 'no' : slots === 1 ? 'low' : 'ok';
+    const units = unitsLeft(t);
+    const pillCls = units === 0 ? 'no' : units === 1 ? 'low' : 'ok';
     const people = bookings.filter(b => b.tableId === t.id);
+    const btnText = t.veg
+      ? (units ? `登記素桌（剩 ${left} 位）` : '額滿')
+      : units ? `登記這桌（可再 ${units} 組）` : (left ? '不足一組' : '額滿');
 
-    return `<div class="table-card ${slots === 0 ? 'full' : ''}">
+    return `<div class="table-card ${t.veg ? 'veg' : ''} ${units === 0 ? 'full' : ''}">
       <div class="tc-head">
-        <div><div class="tc-name">${t.id} 桌</div><div class="tc-size">${t.size} 人桌・${t.size / 2} 組</div></div>
+        <div><div class="tc-name">${t.veg ? '🌱 ' : ''}${t.id} 桌</div><div class="tc-size">${tableSizeText(t)}</div></div>
         <span class="pill ${pillCls}">${left === 0 ? '已額滿' : `剩 ${left} 位`}</span>
       </div>
       <div class="seats">${
@@ -157,11 +159,12 @@ function render() {
           `<span class="seat ${i < used ? 'taken' : ''}"></span>`).join('')
       }</div>
       <div class="occupants">${
-        people.length ? pairsOf(people).map(p => pairLabel(p, false)).join('<br>') : '<i class="muted">尚無人登記</i>'
+        people.length
+          ? (t.veg ? people.map(p => esc(p.name)).join('、') : pairsOf(people).map(p => pairLabel(p, false)).join('<br>'))
+          : '<i class="muted">尚無人登記</i>'
       }</div>
       <div class="tc-actions">
-        <button class="primary" data-book="${t.id}" ${slots === 0 ? 'disabled' : ''}>
-          ${slots === 0 ? (left ? '不足一組' : '額滿') : `登記這桌（可再 ${slots} 組）`}</button>
+        <button class="primary" data-book="${t.id}" ${units === 0 ? 'disabled' : ''}>${btnText}</button>
       </div>
     </div>`;
   }).join('') || '<div class="loading">沒有符合條件的桌次</div>';
@@ -201,18 +204,21 @@ function readFieldEl(f) {
   return f.querySelector('input:checked')?.value || '';
 }
 
-// 產生一組的表單。solo = 找不到搭檔（一人，所有項目都是個人偏好）
-function groupHTML(solo) {
-  const count = solo ? 1 : 2;
-  const perOf = it => solo ? 'person' : it.per;
-  const tag = i => solo ? '' : `<span class="mtag">${'AB'[i]}</span>`;
+// 素桌要顯示的餐點項目：扣掉自動帶入的，以及因為自動帶入而不用選的（例如海鮮）
+const VEG_ITEMS = MENU.filter(it => !(it.key in VEG_FIXED) && !isSkipped(it, VEG_FIXED));
 
-  let html = `<fieldset class="group${solo ? ' solo' : ''}">`;
-  if (!solo) {
-    html += `<div class="group-head"><span class="gtitle">第 <span class="gno"></span> 組</span>
-      <button type="button" class="link del-group">移除這組</button></div>`;
+// 產生一個登記單位的表單
+//   pair = 兩人一組；solo = 找不到搭檔（一人，全部都是個人偏好）；veg = 素桌一人
+function groupHTML(kind) {
+  const count = kind === 'pair' ? 2 : 1;
+  const tag = i => kind === 'pair' ? `<span class="mtag">${'AB'[i]}</span>` : '';
+
+  let html = `<fieldset class="group ${kind === 'pair' ? '' : 'solo'}" data-kind="${kind}">`;
+  if (kind !== 'solo') {
+    html += `<div class="group-head"><span class="gtitle">第 <span class="gno"></span> ${kind === 'veg' ? '位' : '組'}</span>
+      <button type="button" class="link del-group">移除</button></div>`;
   }
-  html += `<div class="step"><span class="n">1</span>${solo ? '你的資料' : '兩位成員'}</div><div class="members">`;
+  html += `<div class="step"><span class="n">1</span>${kind === 'pair' ? '兩位成員' : '姓名與工號'}</div><div class="members">`;
   for (let i = 0; i < count; i++) {
     html += `<div class="member" data-m="${i}">${tag(i)}
       <input type="text" class="p-name" placeholder="姓名" autocomplete="off">
@@ -220,6 +226,13 @@ function groupHTML(solo) {
   }
   html += '</div>';
 
+  if (kind === 'veg') {
+    html += `<div class="step"><span class="n">2</span>選擇飲品和甜點</div>
+      <div class="person-fields" data-m="0"><div class="pf-grid">${VEG_ITEMS.map(fieldHTML).join('')}</div></div>`;
+    return html + '</fieldset>';
+  }
+
+  const perOf = it => kind === 'solo' ? 'person' : it.per;
   let soloNoteShown = false;
   Object.keys(STEP_TITLES).forEach(step => {
     const items = MENU.filter(it => String(it.step) === step);
@@ -228,7 +241,7 @@ function groupHTML(solo) {
     const personItems = items.filter(it => perOf(it) === 'person');
 
     html += `<div class="step"><span class="n">${step}</span>${STEP_TITLES[step]}</div>`;
-    if (solo && !soloNoteShown && items.some(it => it.per === 'pair')) {
+    if (kind === 'solo' && !soloNoteShown && items.some(it => it.per === 'pair')) {
       soloNoteShown = true;
       html += `<p class="dlg-sub" style="margin:-4px 0 8px">套餐是兩人共用，福委會優先幫你找相同偏好的搭檔。</p>`;
     }
@@ -238,7 +251,7 @@ function groupHTML(solo) {
     if (personItems.length) {
       for (let i = 0; i < count; i++) {
         html += `<div class="person-fields" data-m="${i}">${
-          solo ? '' : `<div class="pf-head">${tag(i)}<span class="mname">成員 ${'AB'[i]}</span></div>`
+          kind === 'pair' ? `<div class="pf-head">${tag(i)}<span class="mname">成員 ${'AB'[i]}</span></div>` : ''
         }<div class="pf-grid">${personItems.map(fieldHTML).join('')}</div></div>`;
       }
     }
@@ -246,9 +259,9 @@ function groupHTML(solo) {
   return html + '</fieldset>';
 }
 
-// 某位成員目前的所有選擇（共用項目 + 個人項目）
+// 某位成員目前的所有選擇（共用項目 + 個人項目 + 素桌自動帶入的項目）
 function valuesOf(group, m) {
-  const vals = {};
+  const vals = group.dataset.kind === 'veg' ? { ...VEG_FIXED } : {};
   group.querySelectorAll('.pair-fields .field').forEach(f => vals[f.dataset.field] = readFieldEl(f));
   if (m != null) {
     group.querySelectorAll(`.person-fields[data-m="${m}"] .field`)
@@ -271,36 +284,50 @@ function applySkips(group) {
   });
 }
 
+// 桌次選單的值：'' = 還沒選；'none' = 不指定桌次，由福委安排；其他 = 桌號
+const UNSEATED = 'none';
+const selectedTableId = () => {
+  const v = $('#tableSel').value;
+  return v && v !== UNSEATED ? v : null;
+};
+
 function maxGroups() {
   if (formMode === 'solo') return 1;
-  const id = $('#tableSel').value;
-  return id ? pairSlots(id) : MAX_UNSEATED_GROUPS;
+  const id = selectedTableId();
+  if (!id) return MAX_UNSEATED_GROUPS;
+  return unitsLeft(tableById(id));
 }
 
 function syncGroups() {
   const n = $('#groups').children.length;
   const max = maxGroups();
   const btn = $('#btnAddGroup');
+  const more = Math.max(0, max - n);
   btn.hidden = formMode === 'solo' || n >= max;
-  btn.textContent = $('#tableSel').value
-    ? `+ 同桌再加一組（這桌還能再加 ${Math.max(0, max - n)} 組）`
+  btn.textContent = formMode === 'veg' ? `+ 幫同事一起登記（素桌還能再加 ${more} 位）`
+    : selectedTableId() ? `+ 同桌再加一組（這桌還能再加 ${more} 組）`
     : '+ 再加一組';
   document.querySelectorAll('#groups .del-group').forEach(b => b.hidden = n <= 1);
   document.querySelectorAll('#groups .gno').forEach((s, i) => s.textContent = i + 1);
 }
 
-function addGroup(solo) {
-  $('#groups').insertAdjacentHTML('beforeend', groupHTML(solo));
+function addGroup(kind) {
+  $('#groups').insertAdjacentHTML('beforeend', groupHTML(kind));
   syncGroups();
 }
 
+// 一般登記只列一般桌；素桌登記只列素桌
+// 一般登記一定要自己選（桌次或「不指定」），避免沒注意就變成交給福委排
 function fillTableSelect(selected) {
   const sel = $('#tableSel');
-  sel.innerHTML = '<option value="">不指定桌次，由福委安排座位</option>' + TABLES.map(t => {
-    const left = t.size - seatsUsed(t.id), slots = Math.floor(left / 2);
-    return `<option value="${t.id}" ${slots ? '' : 'disabled'}>${t.id} 桌（${t.size} 人桌，${
-      slots ? `剩 ${left} 位，可登記 ${slots} 組` : '已額滿'}）</option>`;
-  }).join('');
+  const veg = formMode === 'veg';
+  sel.innerHTML = (veg ? '' :
+    `<option value="">請選擇桌次</option><option value="${UNSEATED}">不指定桌次，由福委安排座位</option>`) +
+    TABLES.filter(t => t.veg === veg).map(t => {
+      const left = seatsLeftAt(t.id), units = unitsLeft(t);
+      const detail = !units ? '已額滿' : veg ? `剩 ${left} 位` : `剩 ${left} 位，可登記 ${units} 組`;
+      return `<option value="${t.id}" ${units ? '' : 'disabled'}>${t.id} 桌（${detail}）</option>`;
+    }).join('');
   sel.value = selected || '';
 }
 
@@ -310,33 +337,35 @@ function setMsg(text, cls) {
   m.className = 'msg' + (cls ? ' ' + cls : '');
 }
 
-function openPair(tableId) {
-  formMode = 'pair';
-  $('#dlgTitle').textContent = '兩人一組登記';
-  $('#dlgSub').textContent = '先找好搭檔。主餐套餐與海鮮兩人共用一份，飲品和甜點每人各選。整桌一起登記可以按下方「再加一組」。';
-  $('#tableField').hidden = false;
-  fillTableSelect(tableId);
+function openForm(mode, tableId) {
+  formMode = mode;
+  const titles = {
+    pair: ['兩人一組登記', '主餐套餐與海鮮兩人共用一份，飲品和甜點每人各選。整桌一起登記可以按下方「再加一組」。'],
+    veg: ['🌱 素食桌登記', '素桌主餐是素食套餐，不用選主餐和海鮮，只要選飲品和甜點。可以一次幫同事一起登記。'],
+    solo: ['找不到搭檔？交由福委安排', '填寫你的資料與餐點偏好，福委會幫你配對搭檔並安排座位。'],
+  };
+  $('#dlgTitle').textContent = titles[mode][0];
+  $('#dlgSub').textContent = titles[mode][1];
+
+  if (mode === 'veg' && !tableId) {
+    tableId = (VEG_TABLES.find(t => unitsLeft(t) > 0) || VEG_TABLES[0] || {}).id;
+  }
+  // 只有一張素桌時不用讓人選
+  $('#tableField').hidden = mode === 'solo' || (mode === 'veg' && VEG_TABLES.length <= 1);
+  fillTableSelect(mode === 'solo' ? '' : tableId);
+
   $('#groups').innerHTML = '';
-  addGroup(false);
+  addGroup(mode);
   setMsg('');
+  requestId = null;
   dlg.showModal();
 
   // 背景抓最新座位，回來後更新桌次選單（保留使用者目前的選擇）
-  refresh().then(() => {
-    if (dlg.open && formMode === 'pair') { fillTableSelect($('#tableSel').value); syncGroups(); }
-  });
-}
-
-function openSolo() {
-  formMode = 'solo';
-  $('#dlgTitle').textContent = '找不到搭檔？交由福委安排';
-  $('#dlgSub').textContent = '填寫你的資料與餐點偏好，福委會幫你配對搭檔並安排座位。';
-  $('#tableField').hidden = true;
-  $('#tableSel').value = '';
-  $('#groups').innerHTML = '';
-  addGroup(true);
-  setMsg('');
-  dlg.showModal();
+  if (mode !== 'solo') {
+    refresh().then(() => {
+      if (dlg.open && formMode === mode) { fillTableSelect($('#tableSel').value); syncGroups(); }
+    });
+  }
 }
 
 $('#groups').addEventListener('input', e => {
@@ -352,16 +381,17 @@ $('#groups').addEventListener('click', e => {
   e.target.closest('.group').remove();
   syncGroups();
 });
-$('#btnAddGroup').onclick = () => addGroup(false);
+$('#btnAddGroup').onclick = () => addGroup(formMode);
 $('#tableSel').onchange = () => {
   syncGroups();
   const n = $('#groups').children.length, max = maxGroups();
-  setMsg(n > max ? `這桌只能再登記 ${max} 組，請移除多出來的組別或換一桌` : '', n > max ? 'err' : '');
+  const unit = formMode === 'veg' ? '位' : '組';
+  setMsg(n > max ? `這桌只能再登記 ${max} ${unit}，請移除多出來的或換一桌` : '', n > max ? 'err' : '');
 };
 
-function readGroup(group, gi) {
-  const solo = group.classList.contains('solo');
-  const where = solo ? '' : `第 ${gi + 1} 組`;
+function readGroup(group, gi, total) {
+  const kind = group.dataset.kind;
+  const where = kind === 'pair' ? `第 ${gi + 1} 組` : kind === 'veg' && total > 1 ? `第 ${gi + 1} 位` : '';
 
   const members = [...group.querySelectorAll('.member')].map(mEl => {
     const m = mEl.dataset.m;
@@ -369,14 +399,14 @@ function readGroup(group, gi) {
       name: mEl.querySelector('.p-name').value.trim(),
       empId: mEl.querySelector('.p-emp').value.trim(),
     };
-    if (!person.name) throw new Error(solo ? '請填寫姓名' : `${where}成員 ${'AB'[m]} 還沒填姓名`);
+    if (!person.name) throw new Error(kind === 'pair' ? `${where}成員 ${'AB'[m]} 還沒填姓名` : `${where}請填寫姓名`);
     if (!person.empId) throw new Error(`${where}「${person.name}」還沒填工號`);
 
     Object.assign(person, valuesOf(group, m));
     MENU.forEach(it => {
       if (isSkipped(it, person)) { person[it.key] = ''; return; }
       if (!person[it.key]) {
-        throw new Error(!solo && it.per === 'pair'
+        throw new Error(kind === 'pair' && it.per === 'pair'
           ? `${where}還沒選「${it.label}」`
           : `${where}「${person.name}」還沒選「${it.label}」`);
       }
@@ -388,8 +418,8 @@ function readGroup(group, gi) {
 
 function collectForm() {
   const groupEls = [...$('#groups').children];
-  if (!groupEls.length) throw new Error('請至少登記一組');
-  const groups = groupEls.map(readGroup);
+  if (!groupEls.length) throw new Error('請至少登記一位');
+  const groups = groupEls.map((g, i) => readGroup(g, i, groupEls.length));
   const people = groups.flatMap(g => g.members);
 
   const ids = people.map(p => p.empId);
@@ -399,12 +429,16 @@ function collectForm() {
   const taken = bookings.find(b => ids.includes(b.empId));
   if (taken) {
     throw new Error(`工號 ${taken.empId}（${taken.name}）已經登記過${
-      taken.tableId ? ' ' + taken.tableId + ' 桌' : '（交由福委安排）'}，請先取消原登記`);
+      taken.tableId ? ' ' + taken.tableId + ' 桌' : '（交由福委安排）'}，如需修改請洽福委會`);
   }
 
-  const tableId = formMode === 'solo' ? null : ($('#tableSel').value || null);
+  if (formMode === 'pair' && !$('#tableSel').value) {
+    throw new Error('請先選擇桌次（或選「不指定桌次，由福委安排座位」）');
+  }
+  const tableId = formMode === 'solo' ? null : selectedTableId();
+  if (formMode === 'veg' && !tableId) throw new Error('素桌已額滿，請改選一般桌或「找不到搭檔」');
   if (tableId) {
-    const left = tableById(tableId).size - seatsUsed(tableId);
+    const left = seatsLeftAt(tableId);
     if (people.length > left) throw new Error(`${tableId} 桌只剩 ${left} 個位子，這次要登記 ${people.length} 位`);
   }
   return { tableId, groups };
@@ -419,16 +453,23 @@ $('#btnSubmit').onclick = async () => {
   busy = true;
   $('#btnSubmit').disabled = true;
   setMsg('送出中…');
+  if (!requestId) requestId = newRequestId();
   try {
-    const r = await api('book', payload);
+    const r = await api('book', { ...payload, requestId }, {
+      retries: 4,
+      onRetry: n => setMsg(`目前登記的人很多，排隊中，請不要關閉視窗…（第 ${n + 1} 次嘗試）`),
+    });
     setBookings(r.bookings);
     render();
     dlg.close();
-    showDone(r.code, payload);
+    requestId = null;
+    showDone(r.code, r.replay);
   } catch (e) {
-    setMsg('⚠️ ' + e.message, 'err');
+    setMsg(e.retry
+      ? '⚠️ 目前登記的人太多，請等幾秒再按一次「送出登記」（不會重複登記）'
+      : '⚠️ ' + e.message, 'err');
     await refresh();          // 可能是別人先搶走了，拉最新狀態
-    if (formMode === 'pair') { fillTableSelect($('#tableSel').value); syncGroups(); }
+    if (formMode !== 'solo') { fillTableSelect($('#tableSel').value); syncGroups(); }
   } finally {
     busy = false;
     $('#btnSubmit').disabled = false;
@@ -438,22 +479,24 @@ $('#btnSubmit').onclick = async () => {
 /* ---------------- 登記完成 ---------------- */
 
 const dlgDone = $('#dlgDone');
-// 不允許按 Esc 關閉，一定要按「確認」，避免預約碼一閃而過
+// 不允許按 Esc 關閉，一定要按「確認」，避免登記結果一閃而過
 dlgDone.addEventListener('cancel', e => e.preventDefault());
 $('#btnDoneOk').onclick = () => dlgDone.close();
 
-function showDone(code, payload) {
-  $('#doneCode').textContent = code;
-  $('#btnCopy').textContent = '複製預約碼';
+// 明細以後端實際寫入的資料為準（重送時可能是先前那一次的內容）
+function showDone(code, replay) {
+  const rows = bookings.filter(b => b.code === code);
+  const first = rows[0] || {};
+  const where = first.tableId
+    ? `${first.tableId} 桌${isVegTable(first.tableId) ? '（素桌）' : ''}`
+    : first.pairId ? '由福委安排座位' : '待福委配對搭檔與安排座位';
 
-  const where = payload.tableId
-    ? `${payload.tableId} 桌`
-    : formMode === 'solo' ? '待福委配對搭檔與安排座位' : '由福委安排座位';
-
-  $('#doneDetail').innerHTML = `<div class="dd-where">📍 ${esc(where)}</div>` +
-    payload.groups.map((g, i) => `
-      ${g.members.length === 2 ? `<div class="dd-head">第 ${i + 1} 組</div>` : ''}
-      ${g.members.map(m => `<div class="dd-row"><b>${esc(m.name)}</b>
+  $('#doneDetail').innerHTML =
+    (replay ? '<div class="msg ok" style="margin:0 0 6px">這筆登記先前已經成功送出，以下是登記內容。</div>' : '') +
+    `<div class="dd-where">📍 ${esc(where)}</div>` +
+    pairsOf(rows).map((members, i) => `
+      ${members.length === 2 ? `<div class="dd-head">第 ${i + 1} 組</div>` : ''}
+      ${members.map(m => `<div class="dd-row"><b>${esc(m.name)}</b>
         <span class="muted">${esc(m.empId)}</span><br>
         <span class="muted">${MENU.map(it => m[it.key]).filter(Boolean).map(esc).join('・')}</span></div>`
       ).join('')}`).join('');
@@ -462,52 +505,17 @@ function showDone(code, payload) {
   $('#btnDoneOk').focus();
 }
 
-$('#btnCopy').onclick = async () => {
-  const code = $('#doneCode').textContent;
-  try {
-    await navigator.clipboard.writeText(code);
-    $('#btnCopy').textContent = '已複製 ✓';
-  } catch (e) {
-    const range = document.createRange();
-    range.selectNodeContents($('#doneCode'));
-    getSelection().removeAllRanges();
-    getSelection().addRange(range);
-    $('#btnCopy').textContent = '已選取，請按 Ctrl+C';
-  }
-};
-
-/* ---------------- 取消 ---------------- */
-
-const dlgCancel = $('#dlgCancel');
-$('#btnCancel').onclick = () => {
-  $('#cancelMsg').textContent = '';
-  $('#cancelCode').value = '';
-  dlgCancel.showModal();
-};
-$('#btnDoCancel').onclick = async () => {
-  const code = $('#cancelCode').value.trim().toUpperCase();
-  const m = $('#cancelMsg');
-  if (!code) { m.textContent = '⚠️ 請輸入預約碼'; m.className = 'msg err'; return; }
-  try {
-    const r = await api('cancel', { code });
-    setBookings(r.bookings);
-    render();
-    m.textContent = `✅ 已取消 ${r.removed} 位的登記`;
-    m.className = 'msg ok';
-  } catch (e) {
-    m.textContent = '⚠️ ' + e.message;
-    m.className = 'msg err';
-  }
-};
-
 /* ---------------- 其他 ---------------- */
 
-$('#btnPair').onclick = () => openPair('');
-$('#btnSolo').onclick = () => openSolo();
+$('#btnPair').onclick = () => openForm('pair');
+$('#btnVeg').onclick = () => openForm('veg');
+$('#btnSolo').onclick = () => openForm('solo');
 
 $('#grid').addEventListener('click', e => {
   const btn = e.target.closest('[data-book]');
-  if (btn && !btn.disabled) openPair(btn.dataset.book);
+  if (!btn || btn.disabled) return;
+  const id = btn.dataset.book;
+  openForm(isVegTable(id) ? 'veg' : 'pair', id);
 });
 
 document.querySelectorAll('.chipbtn[data-filter]').forEach(b => {

@@ -64,28 +64,37 @@ function render() {
 }
 
 function renderStats() {
-  const seated = bookings.filter(b => b.tableId).length;
+  const seated = bookings.filter(b => tableById(b.tableId)).length;
   const pairs = pairsOf(bookings.filter(b => b.pairId));
-  const solos = bookings.filter(b => !b.pairId);
+  const solos = bookings.filter(isAwaitingPair);
   const unseated = pairs.filter(p => !p[0].tableId);
+  const vegSeats = VEG_TABLES.reduce((s, t) => s + t.size, 0);
+  const vegUsed = bookings.filter(b => isVegTable(b.tableId)).length;
 
   $('#stats').innerHTML = `
     <div class="stat"><b>${bookings.length} / ${EXPECTED_TOTAL}</b><span>已登記 / 報名人數</span></div>
     <div class="stat"><b>${Math.max(0, EXPECTED_TOTAL - bookings.length)}</b><span>尚未登記（人）</span></div>
     <div class="stat"><b>${TOTAL_SEATS - seated}</b><span>桌上剩餘座位（共 ${TOTAL_SEATS}）</span></div>
     <div class="stat"><b>${pairs.length}</b><span>已組隊（組）</span></div>
+    ${vegSeats ? `<div class="stat"><b>${vegUsed} / ${vegSeats}</b><span>🌱 素桌（人）</span></div>` : ''}
     <div class="stat"><b>${solos.length}</b><span>待配對（人）</span></div>
     <div class="stat"><b>${unseated.length}</b><span>待排座位（組）</span></div>`;
 
   // 開放前要注意的規劃問題
   const notes = [];
+  const unknown = bookings.filter(hasUnknownTable);
+  if (unknown.length) {
+    const ids = [...new Set(unknown.map(b => b.tableId))];
+    notes.push(`<b>有 ${unknown.length} 筆登記的桌號不在桌次設定裡</b>（${ids.map(esc).join('、')}）：可能是舊桌號或手動打錯字，這些人不會出現在各桌名單上。請到試算表修正「桌號」或刪除那幾列。`);
+  }
   if (TOTAL_SEATS < EXPECTED_TOTAL) {
     notes.push(`<b>座位不足：</b>桌次共 ${TOTAL_SEATS} 席，報名 ${EXPECTED_TOTAL} 人，缺 ${EXPECTED_TOTAL - TOTAL_SEATS} 席。請加桌或加椅後修改 <span class="code">config.js</span> 與 <span class="code">Code.gs</span> 的 <span class="code">TABLE_CONFIG</span>。`);
   }
-  if (EXPECTED_TOTAL % 2 === 1) {
-    notes.push(`<b>報名人數是單數（${EXPECTED_TOTAL} 人）：</b>兩人一組一定會有 1 人湊不成對，需由福委另外安排（例如與福委同組，或單人套餐）。`);
-  }
-  if (EXPECTED_TOTAL % 2 === 0 && solos.length % 2 === 1) {
+  // 素桌一人一位，其餘的人才要兩人一組
+  const needPairs = EXPECTED_TOTAL - vegSeats;
+  if (needPairs % 2 === 1) {
+    notes.push(`<b>要兩人一組的人數是單數：</b>報名 ${EXPECTED_TOTAL} 人${vegSeats ? `，素桌坐滿 ${vegSeats} 人後剩 ${needPairs} 人` : ''}，一定會有 1 人湊不成對，需由福委另外安排（例如與福委同組，或單人套餐）。`);
+  } else if (solos.length % 2 === 1) {
     notes.push(`目前待配對 ${solos.length} 人（單數），至少 1 人無法兩兩配對。`);
   }
   $('#planBanner').innerHTML = notes.length ? `⚠️ 注意事項<ul>${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : '';
@@ -93,24 +102,32 @@ function renderStats() {
 
 function renderOrderStats() {
   const pairHeads = pairsOf(bookings.filter(b => b.pairId)).map(p => p[0]);
-  const solos = bookings.filter(b => !b.pairId);
+  const solos = bookings.filter(isAwaitingPair);
+  const vegPeople = bookings.filter(b => isVegTable(b.tableId));
 
   $('#orderStats').innerHTML = MENU.map(it => {
     const perPair = it.per === 'pair';
     const source = perPair ? pairHeads : bookings;
-    const unit = perPair ? '組' : '份';
     const pending = perPair ? solos.filter(s => s[it.key]).length : 0;
+    const row = o => {
+      const n = source.filter(r => r[it.key] === o).length;
+      // 共用項目：兩人一組算「組」，素桌一人一位算「份」
+      const veg = perPair ? vegPeople.filter(r => r[it.key] === o).length : 0;
+      const text = perPair
+        ? `${n} 組${veg ? `＋素桌 ${veg} 份` : ''}`
+        : `${n} 份`;
+      return `<div class="oc-row"><span>${esc(o)}</span><b>${text}</b></div>`;
+    };
     return `<div class="order-card">
-      <div class="oc-title">${esc(it.label)} <small>${perPair ? '每組一份' : '每人一份'}</small></div>
-      ${it.options.map(o => `<div class="oc-row"><span>${esc(o)}</span><b>${
-        source.filter(r => r[it.key] === o).length} ${unit}</b></div>`).join('')}
+      <div class="oc-title">${esc(it.label)} <small>${perPair ? '每組一份（素桌每人一份）' : '每人一份'}</small></div>
+      ${it.options.map(row).join('')}
       ${pending ? `<div class="oc-extra">另有 ${pending} 人待配對，尚未計入</div>` : ''}
     </div>`;
   }).join('');
 }
 
 function renderPool() {
-  const solos = bookings.filter(b => !b.pairId);
+  const solos = bookings.filter(isAwaitingPair);
   const unseated = pairsOf(bookings.filter(b => b.pairId && !b.tableId));
   const pairKeys = MENU.filter(it => it.per === 'pair');
 
@@ -129,8 +146,11 @@ function renderPool() {
 function renderSummary() {
   const rows = TABLES.map(t => {
     const ppl = bookings.filter(b => b.tableId === t.id);
-    return `<tr><td>${t.id}</td><td class="num">${ppl.length}/${t.size}</td>
-      <td>${ppl.length ? pairsOf(ppl).map(p => pairLabel(p, true)).join('<br>') : '<span class="muted">—</span>'}</td></tr>`;
+    const names = t.veg
+      ? ppl.map(p => `${esc(p.name)}<span class="tag">${esc(p.drink)}・${esc(p.dessert)}</span>`).join('<br>')
+      : pairsOf(ppl).map(p => pairLabel(p, true)).join('<br>');
+    return `<tr><td>${t.veg ? '🌱 ' : ''}${t.id}</td><td class="num">${ppl.length}/${t.size}</td>
+      <td>${ppl.length ? names : '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
   $('#summary').innerHTML = `<table class="admin">
     <tr><th>桌號</th><th>人數</th><th>組別與套餐</th></tr>${rows}</table>`;
@@ -138,12 +158,12 @@ function renderSummary() {
 
 $('#btnExport').onclick = () => {
   const order = id => id ? TABLES.findIndex(t => t.id === id) : 9999;
-  const head = ['桌號', '組別', '姓名', '工號', ...MENU.map(it => it.label), '預約碼', '登記時間'];
+  const head = ['桌號', '組別', '姓名', '工號', ...MENU.map(it => it.label), '登記時間'];
   const body = bookings
     .slice()
     .sort((a, b) => order(a.tableId) - order(b.tableId) || String(a.pairId).localeCompare(String(b.pairId)))
-    .map(b => [b.tableId || '待安排', b.pairId || '待配對', b.name, b.empId,
-               ...MENU.map(it => b[it.key] || ''), b.code, new Date(b.ts).toLocaleString('zh-TW')]);
+    .map(b => [b.tableId || '待安排', b.pairId || (b.tableId ? '素桌' : '待配對'), b.name, b.empId,
+               ...MENU.map(it => b[it.key] || ''), new Date(b.ts).toLocaleString('zh-TW')]);
   const csv = [head, ...body]
     .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
     .join('\r\n');
@@ -158,7 +178,7 @@ $('#btnExport').onclick = () => {
 async function refresh() {
   $('#btnRefresh').disabled = true;
   $('#btnRefresh').textContent = '↻ 更新中…';
-  if (await syncBookings()) status = 'fresh';
+  if (await syncBookings(true)) status = 'fresh';   // 福委頁略過快取，看到試算表的即時內容
   $('#btnRefresh').disabled = false;
   $('#btnRefresh').textContent = '↻ 重新整理';
   render();

@@ -1,36 +1,88 @@
 /* 表單頁與福委頁共用的資料層與小工具（需先載入 config.js） */
 
-const TABLES = [];
-TABLE_CONFIG.forEach(c => {
-  for (let i = 1; i <= c.count; i++) TABLES.push({ id: c.prefix + i, size: c.size });
-});
+const TABLES = TABLE_CONFIG.map(c => ({ id: String(c.id), size: c.size, veg: !!c.veg }));
 const TOTAL_SEATS = TABLES.reduce((s, t) => s + t.size, 0);
+const VEG_TABLES = TABLES.filter(t => t.veg);
 const tableById = id => TABLES.find(t => t.id === id);
+const isVegTable = id => !!(id && tableById(id)?.veg);
 const menuItem = key => MENU.find(m => m.key === key);
 const isSkipped = (item, vals) =>
   !!item.skipIf && Object.keys(item.skipIf).every(k => vals[k] === item.skipIf[k]);
 
 // bookings: 每人一筆 {code, tableId|null, pairId|'', name, empId, main, seafood, drink, dessert, ts}
-//   pairId 空白 = 找不到搭檔、待福委配對
-//   tableId 空白 = 待福委排座位
+//   有 pairId              = 兩人一組
+//   沒 pairId、有 tableId  = 素桌（一人一位）
+//   沒 pairId、沒 tableId  = 找不到搭檔、待福委配對
+//   code 是同一次送出的登記編號，只在內部使用，不顯示給同仁
 let bookings = [];
+const isAwaitingPair = b => !b.pairId && !b.tableId;
+// 桌號填了、但不在 TABLE_CONFIG 裡（舊桌號或福委手動打錯字）
+const hasUnknownTable = b => !!b.tableId && !tableById(b.tableId);
 
 /* ---------------- 儲存層：後端 or 單機 ---------------- */
 
 const LOCAL_KEY = 'moon-seating-v2';
 
-async function api(action, payload) {
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 每次「送出」產生一組，重送時沿用，後端靠它判斷是不是同一筆
+function newRequestId() {
+  try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+}
+
+// 呼叫後端。遇到「可安全重試」的錯誤（排隊中、逾時、網路斷線、Apps Script 暫時過載）
+// 會自動退避重試；座位已滿、工號重複這類錯誤則直接回報。
+//   opts.retries：最多再試幾次
+//   opts.onRetry(第幾次重試, 錯誤)：重試前通知畫面
+async function api(action, payload, opts = {}) {
   if (!API_URL) return localApi(action, payload);
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    // text/plain 可避開 CORS preflight，Apps Script 才收得到
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, ...payload }),
-  });
-  if (!res.ok) throw new Error('伺服器回應 ' + res.status);
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || '未知錯誤');
-  return data;
+  const retries = opts.retries ?? 2;
+  const body = JSON.stringify({ action, ...payload });
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callBackend(body);
+    } catch (e) {
+      if (!e.retry || attempt >= retries) throw e;
+      if (opts.onRetry) opts.onRetry(attempt + 1, e);
+      // 指數退避 + 隨機抖動，避免大家同時重送又撞在一起
+      await sleep(Math.min(8000, 1000 * 2 ** attempt) * (0.5 + Math.random()));
+    }
+  }
+}
+
+async function callBackend(body) {
+  const fail = (message, retry) => Object.assign(new Error(message), { retry });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    let res;
+    try {
+      res = await fetch(API_URL, {
+        method: 'POST',
+        // text/plain 可避開 CORS preflight，Apps Script 才收得到
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body,
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      throw fail(ctrl.signal.aborted ? '伺服器回應逾時' : '網路連線失敗', true);
+    }
+    if (!res.ok) throw fail('伺服器回應 ' + res.status, res.status === 429 || res.status >= 500);
+
+    let data;
+    try {
+      data = JSON.parse(await res.text());
+    } catch (e) {
+      // Apps Script 同時執行太多時會回傳 HTML 錯誤頁
+      throw fail('伺服器暫時忙碌', true);
+    }
+    if (!data.ok) throw fail(data.error || '未知錯誤', !!data.retry);
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 let memoryRows = null;   // localStorage 被停用時（無痕模式等）的退路
@@ -63,29 +115,27 @@ function localApi(action, payload) {
     write(rows);
     return Promise.resolve({ ok: true, code, bookings: rows });
   }
-
-  if (action === 'cancel') {
-    const code = String(payload.code || '').toUpperCase();
-    const hit = rows.filter(r => r.code === code).length;
-    if (!hit) return Promise.reject(new Error('查無此預約碼'));
-    rows = rows.filter(r => r.code !== code);
-    write(rows);
-    return Promise.resolve({ ok: true, removed: hit, bookings: rows });
-  }
   return Promise.reject(new Error('不支援的動作'));
 }
 
 // 和 Code.gs 的 book_() 規則相同（單機模式用）
 function checkBooking(rows, tableId, groups) {
+  const veg = isVegTable(tableId);
   for (const g of groups) {
-    if (g.members.length === 1 && tableId) return '找不到搭檔的登記請選「交由福委安排」';
-    if (g.members.length < 1 || g.members.length > 2) return '每組必須是兩人';
+    if (veg) {
+      if (g.members.length !== 1) return '素桌請一人一位登記';
+      Object.assign(g.members[0], VEG_FIXED);
+    } else if (g.members.length === 1) {
+      if (tableId) return '找不到搭檔的登記請選「找不到搭檔」';
+    } else if (g.members.length !== 2) {
+      return '每組必須是兩人';
+    }
   }
   const people = groups.flatMap(g => g.members);
   const byEmp = new Map(rows.map(r => [r.empId, r]));
   for (const p of people) {
     const hit = byEmp.get(p.empId);
-    if (hit) return `工號 ${hit.empId}（${hit.name}）已經登記過，請先用預約碼取消原登記`;
+    if (hit) return `工號 ${hit.empId}（${hit.name}）已經登記過，如需修改請洽福委會`;
   }
   if (tableId) {
     const t = tableById(tableId);
@@ -144,15 +194,16 @@ function autoRefresh(fn, intervalMs, canRun) {
 
 // 取得最新登記資料，並把連線狀態顯示在 #netBanner。
 // 同時間只會有一個請求在跑，重複呼叫會共用同一個結果。
-function syncBookings() {
-  if (!syncing) syncing = doSync().finally(() => { syncing = null; });
+//   fresh = true：略過後端快取，直接讀試算表（福委頁用）
+function syncBookings(fresh) {
+  if (!syncing) syncing = doSync(fresh).finally(() => { syncing = null; });
   return syncing;
 }
 
-async function doSync() {
+async function doSync(fresh) {
   const banner = document.querySelector('#netBanner');
   try {
-    const r = await api('state', {});
+    const r = await api('state', fresh ? { fresh: true } : {}, { retries: 1 });
     setBookings(r.bookings);
     lastSyncAt = Date.now();
     if (banner) {

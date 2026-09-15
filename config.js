@@ -10,12 +10,33 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxJPzxyNUuLEfW2DhlQB_2G
 // 報名人數（福委頁用來對照登記進度）
 const EXPECTED_TOTAL = 93;
 
-// 桌次設定
+// 桌次設定：一桌一行，id = 桌號，size = 人數（對應餐廳的「A1 4P」）
+//   veg: true = 素桌。一人一位登記（不用兩人一組），餐點自動帶入 VEG_FIXED，只選飲品和甜點
+//   頁面上的桌子依這裡的順序排列
+// ⚠️ 已經有人登記的桌號不要改名或刪除，否則那些人會從頁面上消失（資料還在試算表裡）
 const TABLE_CONFIG = [
-  { prefix: '甲', size: 4, count: 8 },   // 8 張 4 人桌 = 32
-  { prefix: '乙', size: 6, count: 9 },   // 9 張 6 人桌 = 54
-  { prefix: '丙', size: 8, count: 1 },   // 1 張 8 人桌 =  8
-];
+  { id: 'A1', size: 4 },
+  { id: 'A2', size: 4 },
+  { id: 'A3', size: 4 },
+  { id: 'A4', size: 4 },
+  { id: 'A5', size: 4 },
+  { id: 'A6', size: 4 },
+  { id: 'B1', size: 4 },
+  { id: 'B2', size: 4 },
+  { id: 'B3', size: 6, veg: true },   // 素桌
+  { id: 'B4', size: 8 },
+  { id: 'C1', size: 6 },
+  { id: 'C2', size: 6 },
+  { id: 'C3', size: 6 },
+  { id: 'C4', size: 6 },
+  { id: 'C5', size: 6 },
+  { id: 'C6', size: 6 },
+  { id: 'C7', size: 6 },
+  { id: 'C8', size: 6 },
+];   // 合計 94 席
+
+// 素桌自動帶入的餐點（這些項目不會出現在素桌的表單上）
+const VEG_FIXED = { main: '素' };
 
 // 餐點選項
 //   per:    'pair' = 一組兩人共用一份；'person' = 每人各選一份
