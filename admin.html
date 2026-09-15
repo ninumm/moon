@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>中秋餐會 福委後台</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="admin-head">
+  <div>
+    <h1>🌕 中秋餐會 福委後台</h1>
+    <p>登記進度、待配對名單與點餐統計。<span id="updatedAt"></span></p>
+  </div>
+  <a href="index.html">← 回登記表單</a>
+</header>
+
+<div class="stats" id="stats"></div>
+<div class="banner warn" id="planBanner"></div>
+<div class="banner" id="netBanner"></div>
+
+<div class="toolbar" style="margin-top:14px">
+  <button class="ghost" id="btnExport">⬇ 匯出 CSV（可直接用 Excel 開啟）</button>
+  <button class="ghost" id="btnRefresh">↻ 重新整理</button>
+</div>
+
+<h2>點餐統計 <small>給餐廳的數量</small></h2>
+<div class="order-grid" id="orderStats"></div>
+
+<h2>交由福委安排</h2>
+<div class="pool-grid">
+  <div class="card">
+    <h4>待配對（找不到搭檔）<span id="soloCount" class="tc-size"></span></h4>
+    <ul id="soloList"></ul>
+  </div>
+  <div class="card">
+    <h4>已組隊、待排座位<span id="unseatedCount" class="tc-size"></span></h4>
+    <ul id="unseatedList"></ul>
+  </div>
+</div>
+
+<h2>各桌名單</h2>
+<div class="scroll-x" id="summary"></div>
+
+</div>
+
+<script src="config.js"></script>
+<script src="shared.js"></script>
+<script>
+function render() {
+  renderStats();
+  renderOrderStats();
+  renderPool();
+  renderSummary();
+  $('#updatedAt').textContent = `（更新於 ${new Date().toLocaleTimeString('zh-TW', { hour12: false })}）`;
+}
+
+function renderStats() {
+  const seated = bookings.filter(b => b.tableId).length;
+  const pairs = pairsOf(bookings.filter(b => b.pairId));
+  const solos = bookings.filter(b => !b.pairId);
+  const unseated = pairs.filter(p => !p[0].tableId);
+
+  $('#stats').innerHTML = `
+    <div class="stat"><b>${bookings.length} / ${EXPECTED_TOTAL}</b><span>已登記 / 報名人數</span></div>
+    <div class="stat"><b>${Math.max(0, EXPECTED_TOTAL - bookings.length)}</b><span>尚未登記（人）</span></div>
+    <div class="stat"><b>${TOTAL_SEATS - seated}</b><span>桌上剩餘座位（共 ${TOTAL_SEATS}）</span></div>
+    <div class="stat"><b>${pairs.length}</b><span>已組隊（組）</span></div>
+    <div class="stat"><b>${solos.length}</b><span>待配對（人）</span></div>
+    <div class="stat"><b>${unseated.length}</b><span>待排座位（組）</span></div>`;
+
+  // 開放前要注意的規劃問題
+  const notes = [];
+  if (TOTAL_SEATS < EXPECTED_TOTAL) {
+    notes.push(`<b>座位不足：</b>桌次共 ${TOTAL_SEATS} 席，報名 ${EXPECTED_TOTAL} 人，缺 ${EXPECTED_TOTAL - TOTAL_SEATS} 席。請加桌或加椅後修改 <span class="code">config.js</span> 與 <span class="code">Code.gs</span> 的 <span class="code">TABLE_CONFIG</span>。`);
+  }
+  if (EXPECTED_TOTAL % 2 === 1) {
+    notes.push(`<b>報名人數是單數（${EXPECTED_TOTAL} 人）：</b>兩人一組一定會有 1 人湊不成對，需由福委另外安排（例如與福委同組，或單人套餐）。`);
+  }
+  if (EXPECTED_TOTAL % 2 === 0 && solos.length % 2 === 1) {
+    notes.push(`目前待配對 ${solos.length} 人（單數），至少 1 人無法兩兩配對。`);
+  }
+  $('#planBanner').innerHTML = notes.length ? `⚠️ 注意事項<ul>${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : '';
+}
+
+function renderOrderStats() {
+  const pairHeads = pairsOf(bookings.filter(b => b.pairId)).map(p => p[0]);
+  const solos = bookings.filter(b => !b.pairId);
+
+  $('#orderStats').innerHTML = MENU.map(it => {
+    const perPair = it.per === 'pair';
+    const source = perPair ? pairHeads : bookings;
+    const unit = perPair ? '組' : '份';
+    const pending = perPair ? solos.filter(s => s[it.key]).length : 0;
+    return `<div class="order-card">
+      <div class="oc-title">${esc(it.label)} <small>${perPair ? '每組一份' : '每人一份'}</small></div>
+      ${it.options.map(o => `<div class="oc-row"><span>${esc(o)}</span><b>${
+        source.filter(r => r[it.key] === o).length} ${unit}</b></div>`).join('')}
+      ${pending ? `<div class="oc-extra">另有 ${pending} 人待配對，尚未計入</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderPool() {
+  const solos = bookings.filter(b => !b.pairId);
+  const unseated = pairsOf(bookings.filter(b => b.pairId && !b.tableId));
+  const pairKeys = MENU.filter(it => it.per === 'pair');
+
+  $('#soloCount').textContent = solos.length ? `（${solos.length} 人）` : '';
+  $('#soloList').innerHTML = solos.length
+    ? solos.map(x => `<li>${esc(x.name)} <span class="tc-size">${esc(x.empId)}・偏好 ${
+        pairKeys.map(it => x[it.key]).filter(Boolean).map(esc).join('/')}</span></li>`).join('')
+    : '<li><i class="muted">目前沒有人</i></li>';
+
+  $('#unseatedCount').textContent = unseated.length ? `（${unseated.length} 組）` : '';
+  $('#unseatedList').innerHTML = unseated.length
+    ? unseated.map(p => `<li>${pairLabel(p, true)}</li>`).join('')
+    : '<li><i class="muted">目前沒有</i></li>';
+}
+
+function renderSummary() {
+  const rows = TABLES.map(t => {
+    const ppl = bookings.filter(b => b.tableId === t.id);
+    return `<tr><td>${t.id}</td><td class="num">${ppl.length}/${t.size}</td>
+      <td>${ppl.length ? pairsOf(ppl).map(p => pairLabel(p, true)).join('<br>') : '<span class="muted">—</span>'}</td></tr>`;
+  }).join('');
+  $('#summary').innerHTML = `<table class="admin">
+    <tr><th>桌號</th><th>人數</th><th>組別與套餐</th></tr>${rows}</table>`;
+}
+
+$('#btnExport').onclick = () => {
+  const order = id => id ? TABLES.findIndex(t => t.id === id) : 9999;
+  const head = ['桌號', '組別', '姓名', '工號', ...MENU.map(it => it.label), '預約碼', '登記時間'];
+  const body = bookings
+    .slice()
+    .sort((a, b) => order(a.tableId) - order(b.tableId) || String(a.pairId).localeCompare(String(b.pairId)))
+    .map(b => [b.tableId || '待安排', b.pairId || '待配對', b.name, b.empId,
+               ...MENU.map(it => b[it.key] || ''), b.code, new Date(b.ts).toLocaleString('zh-TW')]);
+  const csv = [head, ...body]
+    .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }); // BOM 讓 Excel 不亂碼
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `中秋餐會登記_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+async function refresh() {
+  await syncBookings();
+  render();
+}
+
+$('#btnRefresh').onclick = () => refresh();
+refresh();
+setInterval(refresh, 20000);
+</script>
+</body>
+</html>

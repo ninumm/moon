@@ -3,167 +3,60 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>中秋餐會 座位預約</title>
-<style>
-  :root{
-    --bg:#f6f4ef; --card:#fff; --ink:#23201c; --muted:#7a7269;
-    --line:#e2ddd3; --accent:#b8562f; --accent-soft:#fbeee7;
-    --ok:#2f7d5d; --ok-soft:#e8f4ee; --warn:#a8791b; --warn-soft:#fdf3e0;
-    --full:#f0ece4; --radius:12px;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
-    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
-    line-height:1.6;-webkit-text-size-adjust:100%}
-  .wrap{max-width:1040px;margin:0 auto;padding:20px 16px 80px}
-  header h1{margin:0 0 4px;font-size:1.5rem;letter-spacing:.02em}
-  header p{margin:0;color:var(--muted);font-size:.9rem}
-
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
-    gap:10px;margin:18px 0}
-  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
-  .stat b{display:block;font-size:1.35rem;line-height:1.2}
-  .stat span{font-size:.78rem;color:var(--muted)}
-
-  .banner{border-radius:var(--radius);padding:12px 14px;margin:0 0 18px;font-size:.88rem;border:1px solid}
-  .banner.warn{background:var(--warn-soft);border-color:#e8d4a8;color:#6b4d0d}
-  .banner.info{background:var(--accent-soft);border-color:#f0d6c8;color:#7a3a1c}
-  .banner.err{background:#fdeceb;border-color:#f2c6c2;color:#8f2a22}
-  .banner:empty{display:none}
-
-  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
-  .chipbtn{border:1px solid var(--line);background:var(--card);color:var(--ink);
-    border-radius:999px;padding:6px 14px;font-size:.85rem;cursor:pointer;font-family:inherit}
-  .chipbtn[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .spacer{flex:1}
-
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-  .table-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px;display:flex;flex-direction:column;gap:9px}
-  .table-card.full{background:var(--full);opacity:.72}
-  .tc-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  .tc-name{font-weight:700;font-size:1.05rem}
-  .tc-size{font-size:.78rem;color:var(--muted)}
-  .pill{font-size:.78rem;padding:3px 9px;border-radius:999px;white-space:nowrap}
-  .pill.ok{background:var(--ok-soft);color:var(--ok)}
-  .pill.low{background:var(--warn-soft);color:var(--warn)}
-  .pill.no{background:#ebe7df;color:var(--muted)}
-  .seats{display:flex;flex-wrap:wrap;gap:5px}
-  .seat{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);background:#fff}
-  .seat.taken{background:var(--accent);border-color:var(--accent)}
-  .occupants{font-size:.8rem;color:var(--muted);min-height:1.2em;word-break:break-all}
-  .occupants .veg{color:var(--ok)}
-  .tc-actions{margin-top:auto;display:flex;gap:8px}
-  button.primary{background:var(--accent);color:#fff;border:0;border-radius:8px;
-    padding:8px 14px;font-size:.88rem;cursor:pointer;font-family:inherit;font-weight:500}
-  button.primary:disabled{background:#cfc8bd;cursor:not-allowed}
-  button.ghost{background:transparent;border:1px solid var(--line);border-radius:8px;
-    padding:8px 14px;font-size:.88rem;cursor:pointer;font-family:inherit;color:var(--ink)}
-
-  h2{font-size:1.1rem;margin:30px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
-
-  dialog{border:0;border-radius:14px;padding:0;max-width:600px;width:calc(100% - 28px);
-    background:var(--card);color:var(--ink)}
-  dialog::backdrop{background:rgba(35,32,28,.45)}
-  .dlg-body{padding:20px}
-  .dlg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-  .dlg-head h3{margin:0;font-size:1.15rem}
-  .dlg-sub{color:var(--muted);font-size:.85rem;margin:0 0 14px}
-  .x{border:0;background:transparent;font-size:1.5rem;line-height:1;cursor:pointer;color:var(--muted);padding:0 4px}
-
-  .modes{display:flex;gap:8px;margin-bottom:14px}
-  .modes label{flex:1;border:1px solid var(--line);border-radius:10px;padding:9px;
-    text-align:center;cursor:pointer;font-size:.88rem}
-  .modes input{position:absolute;opacity:0;pointer-events:none}
-  .modes label:has(input:checked){border-color:var(--accent);background:var(--accent-soft);
-    color:var(--accent);font-weight:600}
-
-  .person{display:grid;grid-template-columns:1.2fr 1fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
-  .person .idx{display:none}
-  input[type=text],select{width:100%;padding:8px 10px;border:1px solid var(--line);
-    border-radius:8px;font-family:inherit;font-size:.9rem;background:#fff;color:var(--ink)}
-  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
-  .del{border:1px solid var(--line);background:#fff;border-radius:8px;width:34px;height:34px;
-    cursor:pointer;color:var(--muted);font-size:1rem;flex:none}
-  .dlg-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;
-    padding-top:14px;border-top:1px solid var(--line)}
-  .msg{font-size:.85rem;margin:10px 0 0;min-height:1.2em}
-  .msg.err{color:#a8342a}
-  .msg.ok{color:var(--ok)}
-
-  .pool{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
-  .pool ul{margin:8px 0 0;padding-left:18px;font-size:.88rem;columns:2;column-gap:20px}
-  @media(max-width:560px){
-    .pool ul{columns:1}
-    .person{grid-template-columns:1fr 1fr;gap:6px}
-    .person select{grid-column:1/2}
-    .person .del{grid-column:2/3;justify-self:end}
-    .modes{flex-direction:column}
-  }
-  table.admin{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:10px}
-  table.admin th,table.admin td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
-  table.admin th{color:var(--muted);font-weight:500}
-  .code{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--accent-soft);
-    padding:2px 7px;border-radius:5px;font-size:.95em}
-  .loading{text-align:center;color:var(--muted);padding:40px;font-size:.9rem}
-</style>
+<title>中秋餐會 座位與餐點登記</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
 
 <header>
-  <h1>🌕 中秋餐會 座位預約</h1>
-  <p>請選一張桌子登記，或交由福委統一安排。額滿的桌子會自動鎖住。</p>
+  <h1>🌕 中秋餐會 座位與餐點登記</h1>
+  <p>兩人一組選桌、選套餐；找不到搭檔的同仁可以交由福委會安排。</p>
 </header>
 
-<div class="stats" id="stats"></div>
-<div class="banner warn" id="capBanner"></div>
-<div class="banner err" id="netBanner"></div>
+<div class="entry">
+  <button class="entry-card main" id="btnPair">
+    <span class="ec-icon">👫</span>
+    <span><b>兩人一組登記</b><small>已經找好搭檔，一起選桌與套餐</small></span>
+  </button>
+  <button class="entry-card" id="btnSolo">
+    <span class="ec-icon">🙋</span>
+    <span><b>找不到搭檔</b><small>交由福委會幫你配對、安排座位</small></span>
+  </button>
+</div>
 
+<div class="banner" id="netBanner"></div>
+
+<h2>桌次與剩餘座位 <small id="seatsLeft"></small></h2>
 <div class="toolbar">
   <button class="chipbtn" data-filter="all" aria-pressed="true">全部</button>
   <button class="chipbtn" data-filter="4">4 人桌</button>
   <button class="chipbtn" data-filter="6">6 人桌</button>
   <button class="chipbtn" data-filter="8">8 人桌</button>
-  <button class="chipbtn" data-filter="free" >尚有空位</button>
+  <button class="chipbtn" data-filter="free">尚有空位</button>
   <span class="spacer"></span>
-  <button class="ghost" id="btnPool">🎲 交由福委安排</button>
   <button class="ghost" id="btnCancel">取消我的登記</button>
 </div>
-
 <div class="grid" id="grid"><div class="loading">載入中…</div></div>
-
-<h2>交由福委安排 <span id="poolCount" class="tc-size"></span></h2>
-<div class="pool">
-  <p class="dlg-sub" style="margin:0">以下人員未指定桌次，餐會前由福委依餐別統一安排座位。</p>
-  <ul id="poolList"></ul>
-</div>
-
-<h2>福委專區</h2>
-<div class="pool">
-  <button class="ghost" id="btnExport">⬇ 匯出 CSV（可直接用 Excel 開啟）</button>
-  <button class="ghost" id="btnRefresh">↻ 重新整理</button>
-  <div id="summary"></div>
-</div>
 
 </div><!--/wrap-->
 
-<!-- ============ 預約對話框 ============ -->
+<!-- ============ 登記對話框 ============ -->
 <dialog id="dlg">
- <form method="dialog" class="dlg-body" id="form">
+ <form class="dlg-body" id="form" onsubmit="return false">
   <div class="dlg-head">
-    <h3 id="dlgTitle">預約座位</h3>
+    <h3 id="dlgTitle">登記</h3>
     <button type="button" class="x" data-close>&times;</button>
   </div>
   <p class="dlg-sub" id="dlgSub"></p>
 
-  <div class="modes" id="modes">
-    <label><input type="radio" name="mode" value="some" checked>登記部分座位</label>
-    <label><input type="radio" name="mode" value="whole">包下整桌</label>
+  <div class="field-top" id="tableField">
+    <label class="field-label" for="tableSel">桌次</label>
+    <select id="tableSel"></select>
   </div>
 
-  <div id="people"></div>
-  <button type="button" class="ghost" id="btnAddPerson">+ 新增一位</button>
+  <div id="groups"></div>
+  <button type="button" class="ghost wide" id="btnAddGroup">+ 同桌再加一組</button>
 
   <p class="msg" id="msg"></p>
 
@@ -172,6 +65,26 @@
     <button type="button" class="primary" id="btnSubmit">送出登記</button>
   </div>
  </form>
+</dialog>
+
+<!-- ============ 登記完成（必須按確認才關閉） ============ -->
+<dialog id="dlgDone">
+ <div class="dlg-body">
+  <div class="done-top">
+    <div class="done-icon">✅</div>
+    <h3 style="margin:4px 0 0">登記完成</h3>
+  </div>
+  <div class="codebox">
+    <div class="code-label">你的預約碼</div>
+    <div class="bigcode" id="doneCode"></div>
+    <button type="button" class="ghost" id="btnCopy">複製預約碼</button>
+  </div>
+  <p class="dlg-sub" style="text-align:center;margin:0">請截圖或記下預約碼，之後要取消登記時會用到。</p>
+  <div class="done-detail" id="doneDetail"></div>
+  <div class="dlg-foot">
+    <button type="button" class="primary wide" id="btnDoneOk">確認</button>
+  </div>
+ </div>
 </dialog>
 
 <!-- ============ 取消對話框 ============ -->
@@ -191,287 +104,267 @@
  </div>
 </dialog>
 
+<script src="config.js"></script>
+<script src="shared.js"></script>
 <script>
-/* =======================================================================
-   設定區 —— 只有這一段需要你動手改
-   ======================================================================= */
-
-// 貼上 Google Apps Script 部署後拿到的網址（/exec 結尾）。
-// 留空 = 單機示範模式（資料只存在這台電腦的瀏覽器，僅供試玩）。
-const API_URL = 'https://script.google.com/macros/s/AKfycbxJPzxyNUuLEfW2DhlQB_2GglEUFmZmchVFl7ezMz295Es2CChkUTay8JgLWt0pQjOf/exec';
-
-// 桌次設定。座位不夠時就在這裡加桌或把 size 調大（例如 6 人桌加椅子坐 7）。
-const TABLE_CONFIG = [
-  { prefix: '甲', size: 4, count: 7 },   // 7 張 4 人桌 = 28
-  { prefix: '乙', size: 6, count: 9 },   // 9 張 6 人桌 = 54
-  { prefix: '丙', size: 8, count: 1 },   // 1 張 8 人桌 =  8
-];
-
-const EXPECTED = { total: 92, meat: 65, veg: 11, other: 16 };
-const MEALS = [
-  { key:'meat',  label:'葷食' },
-  { key:'veg',   label:'素食' },
-  { key:'other', label:'其他' },
-];
-
-/* ======================================================================= */
-
-const TABLES = [];
-TABLE_CONFIG.forEach(c => {
-  for (let i = 1; i <= c.count; i++) TABLES.push({ id: c.prefix + i, size: c.size });
-});
-const TOTAL_SEATS = TABLES.reduce((s, t) => s + t.size, 0);
-const tableById = id => TABLES.find(t => t.id === id);
-const mealLabel = k => (MEALS.find(m => m.key === k) || {}).label || k;
-
-let bookings = [];        // [{code, tableId|null, name, empId, meal, note, ts}]
 let filter = 'all';
 let busy = false;
+let formMode = 'pair';   // 'pair' | 'solo'
 
-/* ---------------- 儲存層：後端 or 單機 ---------------- */
-
-const LOCAL_KEY = 'moon-seating-v1';
-
-async function api(action, payload) {
-  if (!API_URL) return localApi(action, payload);
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    // text/plain 可避開 CORS preflight，Apps Script 才收得到
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, ...payload }),
-  });
-  if (!res.ok) throw new Error('伺服器回應 ' + res.status);
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || '未知錯誤');
-  return data;
-}
-
-let memoryRows = null;   // localStorage 被停用時（無痕模式等）的退路
-
-function localApi(action, payload) {
-  const read = () => {
-    if (memoryRows) return memoryRows;
-    try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]'); }
-    catch (e) { memoryRows = []; return memoryRows; }
-  };
-  const write = rows => {
-    if (memoryRows) { memoryRows = rows; return; }
-    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(rows)); }
-    catch (e) { memoryRows = rows; }
-  };
-  let rows = read();
-
-  if (action === 'state') return Promise.resolve({ ok: true, bookings: rows });
-
-  if (action === 'book') {
-    const { tableId, people } = payload;
-    if (tableId) {
-      const t = tableById(tableId);
-      const used = rows.filter(r => r.tableId === tableId).length;
-      if (used + people.length > t.size) {
-        return Promise.reject(new Error(`${tableId} 只剩 ${t.size - used} 個位子，請重新選擇`));
-      }
-    }
-    const code = newCode(rows.map(r => r.code));
-    const ts = new Date().toISOString();
-    people.forEach(p => rows.push({ code, tableId, ...p, ts }));
-    write(rows);
-    return Promise.resolve({ ok: true, code, bookings: rows });
-  }
-
-  if (action === 'cancel') {
-    const code = String(payload.code || '').toUpperCase();
-    const hit = rows.filter(r => r.code === code).length;
-    if (!hit) return Promise.reject(new Error('查無此預約碼'));
-    rows = rows.filter(r => r.code !== code);
-    write(rows);
-    return Promise.resolve({ ok: true, removed: hit, bookings: rows });
-  }
-  return Promise.reject(new Error('不支援的動作'));
-}
-
-function newCode(existing) {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去掉易混淆的 I O 0 1
-  let code;
-  do {
-    code = Array.from({ length: 6 }, () =>
-      alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
-  } while (existing.includes(code));
-  return code;
-}
-
-/* ---------------- 畫面 ---------------- */
-
-const $ = sel => document.querySelector(sel);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-
-function seatsUsed(tableId) { return bookings.filter(b => b.tableId === tableId).length; }
-function poolList() { return bookings.filter(b => !b.tableId); }
+/* ---------------- 桌次 ---------------- */
 
 function render() {
-  renderStats();
-  renderGrid();
-  renderPool();
-  renderSummary();
-}
+  const left = TOTAL_SEATS - bookings.filter(b => b.tableId).length;
+  $('#seatsLeft').textContent = `全場剩 ${left} 席`;
 
-function renderStats() {
-  const seated = bookings.filter(b => b.tableId).length;
-  const pool = poolList().length;
-  const counts = {};
-  MEALS.forEach(m => counts[m.key] = bookings.filter(b => b.meal === m.key).length);
-
-  $('#stats').innerHTML = `
-    <div class="stat"><b>${bookings.length} / ${EXPECTED.total}</b><span>已登記 / 報名人數</span></div>
-    <div class="stat"><b>${TOTAL_SEATS - seated}</b><span>桌上剩餘座位（共 ${TOTAL_SEATS}）</span></div>
-    <div class="stat"><b>${pool}</b><span>待福委安排</span></div>
-    ${MEALS.map(m => `<div class="stat"><b>${counts[m.key]}</b><span>${m.label}（報名 ${
-      { meat: EXPECTED.meat, veg: EXPECTED.veg, other: EXPECTED.other }[m.key]}）</span></div>`).join('')}
-  `;
-
-  const banner = $('#capBanner');
-  if (TOTAL_SEATS < EXPECTED.total) {
-    banner.innerHTML = `⚠️ <b>座位不足：</b>目前桌次共 ${TOTAL_SEATS} 席，報名 ${EXPECTED.total} 人，
-      <b>缺 ${EXPECTED.total - TOTAL_SEATS} 席</b>。請與餐廳確認加椅或加桌後，
-      修改 <span class="code">index.html</span> 裡的 <span class="code">TABLE_CONFIG</span>。`;
-  } else { banner.innerHTML = ''; }
-}
-
-function renderGrid() {
   const list = TABLES.filter(t => {
     if (filter === 'all') return true;
-    if (filter === 'free') return seatsUsed(t.id) < t.size;
+    if (filter === 'free') return pairSlots(t.id) > 0;
     return String(t.size) === filter;
   });
 
   $('#grid').innerHTML = list.map(t => {
     const used = seatsUsed(t.id);
     const left = t.size - used;
+    const slots = Math.floor(left / 2);
+    const pillCls = slots === 0 ? 'no' : slots === 1 ? 'low' : 'ok';
     const people = bookings.filter(b => b.tableId === t.id);
-    const pillCls = left === 0 ? 'no' : left <= 2 ? 'low' : 'ok';
-    const vegN = people.filter(p => p.meal === 'veg').length;
 
-    return `<div class="table-card ${left === 0 ? 'full' : ''}">
+    return `<div class="table-card ${slots === 0 ? 'full' : ''}">
       <div class="tc-head">
-        <div><div class="tc-name">${t.id} 桌</div><div class="tc-size">${t.size} 人桌</div></div>
-        <span class="pill ${pillCls}">${left === 0 ? '已額滿' : '剩 ' + left + ' 位'}</span>
+        <div><div class="tc-name">${t.id} 桌</div><div class="tc-size">${t.size} 人桌・${t.size / 2} 組</div></div>
+        <span class="pill ${pillCls}">${left === 0 ? '已額滿' : `剩 ${left} 位`}</span>
       </div>
       <div class="seats">${
         Array.from({ length: t.size }, (_, i) =>
           `<span class="seat ${i < used ? 'taken' : ''}"></span>`).join('')
       }</div>
       <div class="occupants">${
-        people.length
-          ? people.map(p => `<span class="${p.meal === 'veg' ? 'veg' : ''}">${esc(p.name)}${
-              p.meal === 'veg' ? '🌱' : ''}</span>`).join('、')
-          : '<i>尚無人登記</i>'
-      }${vegN ? ` <span class="veg">(素 ${vegN})</span>` : ''}</div>
+        people.length ? pairsOf(people).map(p => pairLabel(p, false)).join('<br>') : '<i class="muted">尚無人登記</i>'
+      }</div>
       <div class="tc-actions">
-        <button class="primary" data-book="${t.id}" ${left === 0 ? 'disabled' : ''}>
-          ${left === 0 ? '額滿' : '登記這桌'}</button>
+        <button class="primary" data-book="${t.id}" ${slots === 0 ? 'disabled' : ''}>
+          ${slots === 0 ? (left ? '不足一組' : '額滿') : `登記這桌（可再 ${slots} 組）`}</button>
       </div>
     </div>`;
   }).join('') || '<div class="loading">沒有符合條件的桌次</div>';
 }
 
-function renderPool() {
-  const p = poolList();
-  $('#poolCount').textContent = p.length ? `（${p.length} 人）` : '';
-  $('#poolList').innerHTML = p.length
-    ? p.map(x => `<li>${esc(x.name)} <span class="tc-size">${esc(x.empId)}・${mealLabel(x.meal)}</span></li>`).join('')
-    : '<li><i>目前沒有人</i></li>';
+async function refresh() {
+  await syncBookings();
+  render();
 }
 
-function renderSummary() {
-  const rows = TABLES.map(t => {
-    const ppl = bookings.filter(b => b.tableId === t.id);
-    return `<tr><td>${t.id}</td><td>${ppl.length}/${t.size}</td>
-      <td>${MEALS.map(m => `${m.label} ${ppl.filter(p => p.meal === m.key).length}`).join('、')}</td>
-      <td>${ppl.map(p => esc(p.name)).join('、') || '—'}</td></tr>`;
-  }).join('');
-  $('#summary').innerHTML = `<table class="admin">
-    <tr><th>桌號</th><th>人數</th><th>餐別</th><th>名單</th></tr>${rows}</table>`;
-}
-
-/* ---------------- 預約表單 ---------------- */
+/* ---------------- 登記表單 ---------------- */
 
 const dlg = $('#dlg');
-let currentTable = null;   // null = 交由福委安排
+let uidSeq = 0;
 
-function personRow(fixedMode) {
-  const div = document.createElement('div');
-  div.className = 'person';
-  div.innerHTML = `
-    <input type="text" class="p-name" placeholder="姓名" autocomplete="off">
-    <input type="text" class="p-emp"  placeholder="工號" autocomplete="off">
-    <select class="p-meal">${MEALS.map(m => `<option value="${m.key}">${m.label}</option>`).join('')}</select>
-    <button type="button" class="del" title="移除">×</button>`;
-  div.querySelector('.del').onclick = () => { div.remove(); syncAddBtn(); };
-  return div;
+function fieldHTML(item) {
+  const name = 'f' + (++uidSeq);
+  const widget = item.options.length <= 4
+    ? `<div class="opts">${item.options.map(o =>
+        `<label class="opt"><input type="radio" name="${name}" value="${esc(o)}"><span>${esc(o)}</span></label>`
+      ).join('')}</div>`
+    : `<select><option value="">請選擇</option>${item.options.map(o =>
+        `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
+  return `<div class="field" data-field="${item.key}">
+    <div class="field-label">${esc(item.label)}</div>${widget}
+    <div class="skip-note">${esc(item.skipNote || '此項不需選擇')}</div>
+  </div>`;
 }
 
-function syncAddBtn() {
-  const cap = currentTable ? tableById(currentTable).size - seatsUsed(currentTable) : 99;
-  const n = $('#people').children.length;
-  $('#btnAddPerson').style.display = n >= cap ? 'none' : '';
-  $('#people').querySelectorAll('.del').forEach(b => b.style.visibility = n > 1 ? '' : 'hidden');
+function readFieldEl(f) {
+  const sel = f.querySelector('select');
+  if (sel) return sel.value;
+  return f.querySelector('input:checked')?.value || '';
 }
 
-function setRows(n) {
-  const box = $('#people');
-  box.innerHTML = '';
-  for (let i = 0; i < n; i++) box.appendChild(personRow());
-  syncAddBtn();
-}
+// 產生一組的表單。solo = 找不到搭檔（一人，所有項目都是個人偏好）
+function groupHTML(solo) {
+  const count = solo ? 1 : 2;
+  const perOf = it => solo ? 'person' : it.per;
+  const tag = i => solo ? '' : `<span class="mtag">${'AB'[i]}</span>`;
 
-function openBooking(tableId) {
-  currentTable = tableId;
-  $('#msg').textContent = '';
-  $('#msg').className = 'msg';
-
-  if (tableId) {
-    const t = tableById(tableId), left = t.size - seatsUsed(tableId);
-    $('#dlgTitle').textContent = `預約 ${tableId} 桌`;
-    $('#dlgSub').textContent = `${t.size} 人桌，目前還剩 ${left} 個位子。`;
-    $('#modes').style.display = left === t.size ? '' : 'none';   // 只有空桌才能「包整桌」
-    document.querySelector('input[name=mode][value=some]').checked = true;
-    setRows(1);
-  } else {
-    $('#dlgTitle').textContent = '交由福委安排';
-    $('#dlgSub').textContent = '不指定桌次，福委會依餐別與部門統一安排。可一次登記多人。';
-    $('#modes').style.display = 'none';
-    setRows(1);
+  let html = `<fieldset class="group${solo ? ' solo' : ''}">`;
+  if (!solo) {
+    html += `<div class="group-head"><span class="gtitle">第 <span class="gno"></span> 組</span>
+      <button type="button" class="link del-group">移除這組</button></div>`;
   }
+  html += `<div class="step"><span class="n">1</span>${solo ? '你的資料' : '兩位成員'}</div><div class="members">`;
+  for (let i = 0; i < count; i++) {
+    html += `<div class="member" data-m="${i}">${tag(i)}
+      <input type="text" class="p-name" placeholder="姓名" autocomplete="off">
+      <input type="text" class="p-emp" placeholder="工號" autocomplete="off"></div>`;
+  }
+  html += '</div>';
+
+  let soloNoteShown = false;
+  Object.keys(STEP_TITLES).forEach(step => {
+    const items = MENU.filter(it => String(it.step) === step);
+    if (!items.length) return;
+    const pairItems = items.filter(it => perOf(it) === 'pair');
+    const personItems = items.filter(it => perOf(it) === 'person');
+
+    html += `<div class="step"><span class="n">${step}</span>${STEP_TITLES[step]}</div>`;
+    if (solo && !soloNoteShown && items.some(it => it.per === 'pair')) {
+      soloNoteShown = true;
+      html += `<p class="dlg-sub" style="margin:-4px 0 8px">套餐是兩人共用，福委會優先幫你找相同偏好的搭檔。</p>`;
+    }
+    if (pairItems.length) {
+      html += `<div class="pair-fields"><div class="scope-note">👫 兩人共用一份</div>${pairItems.map(fieldHTML).join('')}</div>`;
+    }
+    if (personItems.length) {
+      for (let i = 0; i < count; i++) {
+        html += `<div class="person-fields" data-m="${i}">${
+          solo ? '' : `<div class="pf-head">${tag(i)}<span class="mname">成員 ${'AB'[i]}</span></div>`
+        }<div class="pf-grid">${personItems.map(fieldHTML).join('')}</div></div>`;
+      }
+    }
+  });
+  return html + '</fieldset>';
+}
+
+// 某位成員目前的所有選擇（共用項目 + 個人項目）
+function valuesOf(group, m) {
+  const vals = {};
+  group.querySelectorAll('.pair-fields .field').forEach(f => vals[f.dataset.field] = readFieldEl(f));
+  if (m != null) {
+    group.querySelectorAll(`.person-fields[data-m="${m}"] .field`)
+      .forEach(f => vals[f.dataset.field] = readFieldEl(f));
+  }
+  return vals;
+}
+
+function applySkips(group) {
+  group.querySelectorAll('.field').forEach(f => {
+    const it = menuItem(f.dataset.field);
+    if (!it.skipIf) return;
+    const pf = f.closest('.person-fields');
+    const skip = isSkipped(it, valuesOf(group, pf ? pf.dataset.m : null));
+    f.classList.toggle('skipped', skip);
+    f.querySelectorAll('input, select').forEach(el => {
+      el.disabled = skip;
+      if (skip) { if (el.type === 'radio') el.checked = false; else el.value = ''; }
+    });
+  });
+}
+
+function maxGroups() {
+  if (formMode === 'solo') return 1;
+  const id = $('#tableSel').value;
+  return id ? pairSlots(id) : MAX_UNSEATED_GROUPS;
+}
+
+function syncGroups() {
+  const n = $('#groups').children.length;
+  const max = maxGroups();
+  const btn = $('#btnAddGroup');
+  btn.hidden = formMode === 'solo' || n >= max;
+  btn.textContent = $('#tableSel').value
+    ? `+ 同桌再加一組（這桌還能再加 ${Math.max(0, max - n)} 組）`
+    : '+ 再加一組';
+  document.querySelectorAll('#groups .del-group').forEach(b => b.hidden = n <= 1);
+  document.querySelectorAll('#groups .gno').forEach((s, i) => s.textContent = i + 1);
+}
+
+function addGroup(solo) {
+  $('#groups').insertAdjacentHTML('beforeend', groupHTML(solo));
+  syncGroups();
+}
+
+function fillTableSelect(selected) {
+  const sel = $('#tableSel');
+  sel.innerHTML = '<option value="">不指定桌次，由福委安排座位</option>' + TABLES.map(t => {
+    const left = t.size - seatsUsed(t.id), slots = Math.floor(left / 2);
+    return `<option value="${t.id}" ${slots ? '' : 'disabled'}>${t.id} 桌（${t.size} 人桌，${
+      slots ? `剩 ${left} 位，可登記 ${slots} 組` : '已額滿'}）</option>`;
+  }).join('');
+  sel.value = selected || '';
+}
+
+function setMsg(text, cls) {
+  const m = $('#msg');
+  m.textContent = text;
+  m.className = 'msg' + (cls ? ' ' + cls : '');
+}
+
+function openPair(tableId) {
+  formMode = 'pair';
+  $('#dlgTitle').textContent = '兩人一組登記';
+  $('#dlgSub').textContent = '先找好搭檔。主餐套餐與海鮮兩人共用一份，飲品和甜點每人各選。整桌一起登記可以按下方「再加一組」。';
+  $('#tableField').hidden = false;
+  fillTableSelect(tableId);
+  $('#groups').innerHTML = '';
+  addGroup(false);
+  setMsg('');
   dlg.showModal();
 }
 
-$('#modes').addEventListener('change', e => {
-  if (e.target.name !== 'mode') return;
-  if (e.target.value === 'whole' && currentTable) {
-    setRows(tableById(currentTable).size);
-    $('#msg').textContent = `包整桌需填滿 ${tableById(currentTable).size} 位的姓名與工號。`;
-    $('#msg').className = 'msg';
-  } else {
-    setRows(1);
-    $('#msg').textContent = '';
-  }
+function openSolo() {
+  formMode = 'solo';
+  $('#dlgTitle').textContent = '找不到搭檔？交由福委安排';
+  $('#dlgSub').textContent = '填寫你的資料與餐點偏好，福委會幫你配對搭檔並安排座位。';
+  $('#tableField').hidden = true;
+  $('#tableSel').value = '';
+  $('#groups').innerHTML = '';
+  addGroup(true);
+  setMsg('');
+  dlg.showModal();
+}
+
+$('#groups').addEventListener('input', e => {
+  if (!e.target.classList.contains('p-name')) return;
+  const group = e.target.closest('.group');
+  const m = e.target.closest('.member').dataset.m;
+  const name = e.target.value.trim() || '成員 ' + 'AB'[m];
+  group.querySelectorAll(`.person-fields[data-m="${m}"] .mname`).forEach(s => s.textContent = name);
 });
+$('#groups').addEventListener('change', e => applySkips(e.target.closest('.group')));
+$('#groups').addEventListener('click', e => {
+  if (!e.target.classList.contains('del-group')) return;
+  e.target.closest('.group').remove();
+  syncGroups();
+});
+$('#btnAddGroup').onclick = () => addGroup(false);
+$('#tableSel').onchange = () => {
+  syncGroups();
+  const n = $('#groups').children.length, max = maxGroups();
+  setMsg(n > max ? `這桌只能再登記 ${max} 組，請移除多出來的組別或換一桌` : '', n > max ? 'err' : '');
+};
 
-$('#btnAddPerson').onclick = () => { $('#people').appendChild(personRow()); syncAddBtn(); };
+function readGroup(group, gi) {
+  const solo = group.classList.contains('solo');
+  const where = solo ? '' : `第 ${gi + 1} 組`;
 
-function collectPeople() {
-  const rows = [...$('#people').children];
-  const people = [];
-  for (const r of rows) {
-    const name  = r.querySelector('.p-name').value.trim();
-    const empId = r.querySelector('.p-emp').value.trim();
-    const meal  = r.querySelector('.p-meal').value;
-    if (!name && !empId) continue;              // 整列空白就跳過
-    if (!name)  throw new Error('每一位都要填姓名');
-    if (!empId) throw new Error(`「${name}」還沒填工號`);
-    people.push({ name, empId, meal, note: '' });
-  }
-  if (!people.length) throw new Error('請至少填寫一位');
+  const members = [...group.querySelectorAll('.member')].map(mEl => {
+    const m = mEl.dataset.m;
+    const person = {
+      name: mEl.querySelector('.p-name').value.trim(),
+      empId: mEl.querySelector('.p-emp').value.trim(),
+    };
+    if (!person.name) throw new Error(solo ? '請填寫姓名' : `${where}成員 ${'AB'[m]} 還沒填姓名`);
+    if (!person.empId) throw new Error(`${where}「${person.name}」還沒填工號`);
+
+    Object.assign(person, valuesOf(group, m));
+    MENU.forEach(it => {
+      if (isSkipped(it, person)) { person[it.key] = ''; return; }
+      if (!person[it.key]) {
+        throw new Error(!solo && it.per === 'pair'
+          ? `${where}還沒選「${it.label}」`
+          : `${where}「${person.name}」還沒選「${it.label}」`);
+      }
+    });
+    return person;
+  });
+  return { members };
+}
+
+function collectForm() {
+  const groupEls = [...$('#groups').children];
+  if (!groupEls.length) throw new Error('請至少登記一組');
+  const groups = groupEls.map(readGroup);
+  const people = groups.flatMap(g => g.members);
 
   const ids = people.map(p => p.empId);
   const dup = ids.find((id, i) => ids.indexOf(id) !== i);
@@ -482,41 +375,78 @@ function collectPeople() {
     throw new Error(`工號 ${taken.empId}（${taken.name}）已經登記過${
       taken.tableId ? ' ' + taken.tableId + ' 桌' : '（交由福委安排）'}，請先取消原登記`);
   }
-  return people;
+
+  const tableId = formMode === 'solo' ? null : ($('#tableSel').value || null);
+  if (tableId) {
+    const left = tableById(tableId).size - seatsUsed(tableId);
+    if (people.length > left) throw new Error(`${tableId} 桌只剩 ${left} 個位子，這次要登記 ${people.length} 位`);
+  }
+  return { tableId, groups };
 }
 
 $('#btnSubmit').onclick = async () => {
   if (busy) return;
-  const msg = $('#msg');
-  let people;
-  try { people = collectPeople(); }
-  catch (e) { msg.textContent = '⚠️ ' + e.message; msg.className = 'msg err'; return; }
-
-  const mode = document.querySelector('input[name=mode]:checked').value;
-  if (currentTable && $('#modes').style.display !== 'none' && mode === 'whole'
-      && people.length !== tableById(currentTable).size) {
-    msg.textContent = `⚠️ 包整桌要填滿 ${tableById(currentTable).size} 位，目前只有 ${people.length} 位`;
-    msg.className = 'msg err';
-    return;
-  }
+  let payload;
+  try { payload = collectForm(); }
+  catch (e) { setMsg('⚠️ ' + e.message, 'err'); return; }
 
   busy = true;
   $('#btnSubmit').disabled = true;
-  msg.textContent = '送出中…';
-  msg.className = 'msg';
+  setMsg('送出中…');
   try {
-    const r = await api('book', { tableId: currentTable, people });
+    const r = await api('book', payload);
     bookings = r.bookings;
     render();
     dlg.close();
-    alert(`✅ 登記成功！\n\n預約碼：${r.code}\n桌次：${currentTable ? currentTable + ' 桌' : '交由福委安排'}\n人數：${people.length} 位\n\n請保留預約碼，要取消時需要用到。`);
+    showDone(r.code, payload);
   } catch (e) {
-    msg.textContent = '⚠️ ' + e.message;
-    msg.className = 'msg err';
+    setMsg('⚠️ ' + e.message, 'err');
     await refresh();          // 可能是別人先搶走了，拉最新狀態
+    if (formMode === 'pair') { fillTableSelect($('#tableSel').value); syncGroups(); }
   } finally {
     busy = false;
     $('#btnSubmit').disabled = false;
+  }
+};
+
+/* ---------------- 登記完成 ---------------- */
+
+const dlgDone = $('#dlgDone');
+// 不允許按 Esc 關閉，一定要按「確認」，避免預約碼一閃而過
+dlgDone.addEventListener('cancel', e => e.preventDefault());
+$('#btnDoneOk').onclick = () => dlgDone.close();
+
+function showDone(code, payload) {
+  $('#doneCode').textContent = code;
+  $('#btnCopy').textContent = '複製預約碼';
+
+  const where = payload.tableId
+    ? `${payload.tableId} 桌`
+    : formMode === 'solo' ? '待福委配對搭檔與安排座位' : '由福委安排座位';
+
+  $('#doneDetail').innerHTML = `<div class="dd-where">📍 ${esc(where)}</div>` +
+    payload.groups.map((g, i) => `
+      ${g.members.length === 2 ? `<div class="dd-head">第 ${i + 1} 組</div>` : ''}
+      ${g.members.map(m => `<div class="dd-row"><b>${esc(m.name)}</b>
+        <span class="muted">${esc(m.empId)}</span><br>
+        <span class="muted">${MENU.map(it => m[it.key]).filter(Boolean).map(esc).join('・')}</span></div>`
+      ).join('')}`).join('');
+
+  dlgDone.showModal();
+  $('#btnDoneOk').focus();
+}
+
+$('#btnCopy').onclick = async () => {
+  const code = $('#doneCode').textContent;
+  try {
+    await navigator.clipboard.writeText(code);
+    $('#btnCopy').textContent = '已複製 ✓';
+  } catch (e) {
+    const range = document.createRange();
+    range.selectNodeContents($('#doneCode'));
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    $('#btnCopy').textContent = '已選取，請按 Ctrl+C';
   }
 };
 
@@ -546,20 +476,20 @@ $('#btnDoCancel').onclick = async () => {
 
 /* ---------------- 其他 ---------------- */
 
-$('#btnPool').onclick = () => openBooking(null);
-$('#btnRefresh').onclick = () => refresh();
+$('#btnPair').onclick = () => openPair('');
+$('#btnSolo').onclick = () => openSolo();
 
 $('#grid').addEventListener('click', e => {
   const btn = e.target.closest('[data-book]');
-  if (btn && !btn.disabled) openBooking(btn.dataset.book);
+  if (btn && !btn.disabled) openPair(btn.dataset.book);
 });
 
-document.querySelectorAll('.toolbar .chipbtn[data-filter]').forEach(b => {
+document.querySelectorAll('.chipbtn[data-filter]').forEach(b => {
   b.onclick = () => {
     filter = b.dataset.filter;
     document.querySelectorAll('.chipbtn[data-filter]')
       .forEach(x => x.setAttribute('aria-pressed', x === b));
-    renderGrid();
+    render();
   };
 });
 
@@ -567,42 +497,8 @@ document.querySelectorAll('[data-close]').forEach(b => {
   b.onclick = () => b.closest('dialog').close();
 });
 
-$('#btnExport').onclick = () => {
-  const head = ['桌號', '姓名', '工號', '餐別', '預約碼', '登記時間'];
-  const body = bookings
-    .slice()
-    .sort((a, b) => String(a.tableId || 'zz').localeCompare(String(b.tableId || 'zz')))
-    .map(b => [b.tableId || '待安排', b.name, b.empId, mealLabel(b.meal), b.code,
-               new Date(b.ts).toLocaleString('zh-TW')]);
-  const csv = [head, ...body]
-    .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
-    .join('\r\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }); // BOM 讓 Excel 不亂碼
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `中秋餐會座位_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-};
-
-async function refresh() {
-  try {
-    const r = await api('state', {});
-    bookings = r.bookings || [];
-    $('#netBanner').innerHTML = API_URL ? '' :
-      '📋 目前是<b>單機示範模式</b>：資料只存在這台電腦的瀏覽器，換一台裝置看不到。正式使用請先設定 <span class="code">API_URL</span>（見 README）。';
-    $('#netBanner').className = API_URL ? 'banner err' : 'banner info';
-  } catch (e) {
-    // 後端掛掉時仍要把桌次圖畫出來，至少讓人看得到現場配置
-    $('#netBanner').className = 'banner err';
-    $('#netBanner').textContent = '⚠️ 無法取得最新登記狀態：' + e.message
-      + '（畫面可能不是最新的，請稍後按「重新整理」）';
-  }
-  render();
-}
-
 refresh();
-// 每 20 秒同步一次，避免兩個人同時搶同一桌時畫面不同步
+// 每 20 秒同步一次，避免兩組人同時搶同一桌時畫面不同步
 setInterval(() => { if (!dlg.open && !busy) refresh(); }, 20000);
 </script>
 </body>
