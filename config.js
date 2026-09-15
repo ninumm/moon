@@ -44,7 +44,7 @@ const VEG_FIXED = { main: '素' };
 //   skipIf: 符合條件時這一項不用選（依據的欄位要排在它前面）
 const MENU = [
   { key: 'main', label: '主餐套餐', per: 'pair', step: 2,
-    options: ['牛豚', '全豚', '素'] },
+    options: ['牛豚', '全豚'] },
   { key: 'seafood', label: '海鮮', per: 'pair', step: 3,
     options: ['干貝/大蝦', '干貝/花枝'],
     skipIf: { main: '素' }, skipNote: '素食套餐不含海鮮，不用選' },
