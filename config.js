@@ -5,7 +5,7 @@
 
 // 貼上 Google Apps Script 部署後拿到的網址（/exec 結尾）。
 // 留空 = 單機示範模式（資料只存在這台電腦的瀏覽器，僅供試玩）。
-const API_URL = '';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxJPzxyNUuLEfW2DhlQB_2GglEUFmZmchVFl7ezMz295Es2CChkUTay8JgLWt0pQjOf/exec';
 
 // 報名人數（福委頁用來對照登記進度）
 const EXPECTED_TOTAL = 93;
