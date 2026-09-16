@@ -18,13 +18,13 @@ const TABLE_CONFIG = [
   { id: 'A1', size: 4 },
   { id: 'A2', size: 4 },
   { id: 'A3', size: 4 },
-  { id: 'A4', size: 4 },
+  { id: 'A4', size: 4, veg: true}, // 素桌
   { id: 'A5', size: 4 },
   { id: 'A7', size: 4 },
   { id: 'A8', size: 4 },
   { id: 'B1', size: 4 },
   { id: 'B2', size: 4 },
-  { id: 'B3', size: 6, veg: true },   // 素桌
+  { id: 'B3', size: 6 }, // 主桌
   { id: 'B4', size: 8 },
   { id: 'C1', size: 6 },
   { id: 'C2', size: 6 },
