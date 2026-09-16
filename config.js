@@ -8,7 +8,7 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbxJPzxyNUuLEfW2DhlQB_2GglEUFmZmchVFl7ezMz295Es2CChkUTay8JgLWt0pQjOf/exec';
 
 // 報名人數（福委頁用來對照登記進度）
-const EXPECTED_TOTAL = 93;
+const EXPECTED_TOTAL = 95;
 
 // 桌次設定：一桌一行，id = 桌號，size = 人數（對應餐廳的「A1 4P」）
 //   veg: true = 素桌。一人一位登記（不用兩人一組），餐點自動帶入 VEG_FIXED，只選飲品和甜點
@@ -20,7 +20,8 @@ const TABLE_CONFIG = [
   { id: 'A3', size: 4 },
   { id: 'A4', size: 4 },
   { id: 'A5', size: 4 },
-  { id: 'A6', size: 4 },
+  { id: 'A7', size: 4 },
+  { id: 'A8', size: 4 },
   { id: 'B1', size: 4 },
   { id: 'B2', size: 4 },
   { id: 'B3', size: 6, veg: true },   // 素桌
