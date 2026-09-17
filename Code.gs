@@ -28,10 +28,10 @@ const TABLE_CONFIG = [
   { id: 'A6', size: 4 },
   { id: 'B1', size: 4 },
   { id: 'B2', size: 4 },
-  { id: 'B3', size: 6, veg: true },   // 素桌
+  { id: 'B3', size: 6 },   
   { id: 'B4', size: 8 },
   { id: 'C1', size: 6 },
-  { id: 'C2', size: 6 },
+  { id: 'C2', size: 6, veg: true}, // 素桌
   { id: 'C3', size: 6 },
   { id: 'C4', size: 6 },
   { id: 'C5', size: 6 },
